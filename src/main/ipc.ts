@@ -1,0 +1,144 @@
+import { dialog, ipcMain, type BrowserWindow } from 'electron'
+import { readFile, writeFile } from 'fs/promises'
+import type { Database as DB } from 'better-sqlite3'
+import type {
+  AccountInput,
+  CategoryInput,
+  GoalInput,
+  ImportRequest,
+  RecurringRuleInput,
+  TransactionFilter,
+  TransactionInput
+} from '@shared/types'
+import * as core from './db/core'
+import * as tx from './db/transactions'
+import * as recurring from './db/recurring'
+import * as budgets from './db/budgets'
+import * as goals from './db/goals'
+import * as analytics from './db/analytics'
+import * as backup from './db/backup'
+import { getSettings, setSetting } from './db/helpers'
+
+const SETTING_KEYS = new Set(['currencySymbol', 'firstDayOfMonth', 'theme', 'viewMode', 'forecastWindow'])
+
+type IpcResponse = { ok: true; data: unknown } | { ok: false; error: string }
+
+export function registerIpcHandlers(db: DB, getWindow: () => BrowserWindow | null): void {
+  const handle = (channel: string, fn: (...args: never[]) => unknown): void => {
+    ipcMain.handle(channel, async (_event, ...args): Promise<IpcResponse> => {
+      try {
+        const data = await (fn as (...a: unknown[]) => unknown)(...args)
+        return { ok: true, data }
+      } catch (err) {
+        console.error(`[ipc:${channel}]`, err)
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      }
+    })
+  }
+
+  handle('getBootstrap', () => ({
+    people: core.listPeople(db),
+    accounts: core.listAccounts(db),
+    categories: core.listCategories(db),
+    settings: getSettings(db),
+    balances: core.accountBalances(db)
+  }))
+
+  handle('updatePerson', (id: number, patch: { name?: string; color?: string }) => core.updatePerson(db, id, patch))
+
+  handle('listAccounts', () => core.listAccounts(db))
+  handle('createAccount', (input: AccountInput) => core.createAccount(db, input))
+  handle('updateAccount', (id: number, patch: Partial<AccountInput> & { archived?: boolean }) =>
+    core.updateAccount(db, id, patch)
+  )
+  handle('deleteAccount', (id: number) => core.deleteAccount(db, id))
+
+  handle('listCategories', () => core.listCategories(db))
+  handle('createCategory', (input: CategoryInput) => core.createCategory(db, input))
+  handle('updateCategory', (id: number, patch: Partial<CategoryInput> & { archived?: boolean }) =>
+    core.updateCategory(db, id, patch)
+  )
+  handle('deleteCategory', (id: number) => core.deleteCategory(db, id))
+
+  handle('listTransactions', (filter: TransactionFilter) => tx.listTransactions(db, filter ?? {}))
+  handle('createTransaction', (input: TransactionInput) => tx.createTransaction(db, input))
+  handle('updateTransaction', (id: number, patch: Partial<TransactionInput>) => tx.updateTransaction(db, id, patch))
+  handle('deleteTransactions', (ids: number[]) => tx.deleteTransactions(db, ids))
+  handle('getPayeeSuggestions', () => tx.getPayeeSuggestions(db))
+  handle('importTransactions', (req: ImportRequest) => tx.importTransactions(db, req))
+
+  handle('listRecurring', () => recurring.listRecurring(db))
+  handle('createRecurring', (input: RecurringRuleInput) => recurring.createRecurring(db, input))
+  handle('updateRecurring', (id: number, patch: Partial<RecurringRuleInput>) => recurring.updateRecurring(db, id, patch))
+  handle('deleteRecurring', (id: number, deleteInstances: boolean) => recurring.deleteRecurring(db, id, deleteInstances))
+
+  handle('getBudgetGrid', (month: string) => budgets.getBudgetGrid(db, month))
+  handle('setBudget', (month: string, categoryId: number, scope: string, amountCents: number) =>
+    budgets.setBudget(db, month, categoryId, scope, amountCents)
+  )
+  handle('copyBudgetsFromPrevious', (month: string) => budgets.copyBudgetsFromPrevious(db, month))
+  handle('setBudgetsFromAverage', (month: string) => budgets.setBudgetsFromAverage(db, month))
+
+  handle('listGoals', () => goals.listGoals(db))
+  handle('createGoal', (input: GoalInput) => goals.createGoal(db, input))
+  handle('updateGoal', (id: number, patch: Partial<GoalInput>) => goals.updateGoal(db, id, patch))
+  handle('deleteGoal', (id: number) => goals.deleteGoal(db, id))
+
+  handle('getDashboard', (month: string, personId: number | null) => analytics.getDashboard(db, month, personId))
+  handle('getForecast', (windowMonths: number) => analytics.getForecast(db, windowMonths))
+  handle('getYearReport', (year: number, personId: number | null) => analytics.getYearReport(db, year, personId))
+
+  handle('getSettings', () => getSettings(db))
+  handle('setSetting', (key: string, value: string) => {
+    if (!SETTING_KEYS.has(key)) throw new Error(`Unknown setting: ${key}`)
+    setSetting(db, key, value)
+    return getSettings(db)
+  })
+
+  handle('exportBackup', async () => {
+    const win = getWindow()
+    if (!win) throw new Error('No window')
+    const date = new Date().toISOString().slice(0, 10)
+    const res = await dialog.showSaveDialog(win, {
+      title: 'Export dollar backup',
+      defaultPath: `dollar-backup-${date}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }]
+    })
+    if (res.canceled || !res.filePath) return { saved: false }
+    await writeFile(res.filePath, JSON.stringify(backup.exportBackup(db), null, 2), 'utf8')
+    return { saved: true, path: res.filePath }
+  })
+
+  handle('importBackup', async () => {
+    const win = getWindow()
+    if (!win) throw new Error('No window')
+    const res = await dialog.showOpenDialog(win, {
+      title: 'Restore dollar backup',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+      properties: ['openFile']
+    })
+    if (res.canceled || res.filePaths.length === 0) return { restored: false }
+    const raw = await readFile(res.filePaths[0], 'utf8')
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      throw new Error('File is not valid JSON')
+    }
+    backup.importBackup(db, parsed)
+    return { restored: true }
+  })
+
+  handle('saveCsv', async (defaultName: string, content: string) => {
+    const win = getWindow()
+    if (!win) throw new Error('No window')
+    const res = await dialog.showSaveDialog(win, {
+      title: 'Export CSV',
+      defaultPath: defaultName,
+      filters: [{ name: 'CSV', extensions: ['csv'] }]
+    })
+    if (res.canceled || !res.filePath) return { saved: false }
+    await writeFile(res.filePath, content, 'utf8')
+    return { saved: true, path: res.filePath }
+  })
+}

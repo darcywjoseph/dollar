@@ -7,8 +7,9 @@
 A local and offline budgeting tool designed for two people to track savings together, either per-person or jointly. Users can see a month-by-month forecast of finances through to the end of year.
 
 Built with:
+
 - Electron
-- React 18 
+- React 18
 - Tailwind CSS
 - SQLite
 
@@ -28,7 +29,7 @@ npm run build       # typechecked bundle + installer
 npm run build:dir   # build unpacked app in dist/ without an installer
 ```
 
-On mac this produces an unsigned `.dmg` and `.zip` in `dist/`. 
+On mac this produces an unsigned `.dmg` and `.zip` in `dist/`.
 Windows and Linux targets are configured in `electron-builder.yml`.
 
 ## Data

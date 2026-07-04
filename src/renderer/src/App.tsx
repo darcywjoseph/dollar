@@ -4,6 +4,7 @@ import { Spinner } from './components/ui'
 import { useApp } from './appContext'
 import Dashboard from './pages/Dashboard'
 import Transactions from './pages/Transactions'
+import Income from './pages/Income'
 import Budgets from './pages/Budgets'
 import Goals from './pages/Goals'
 import Forecast from './pages/Forecast'
@@ -26,6 +27,7 @@ export default function App(): React.JSX.Element {
     <Layout page={page} onNavigate={setPage}>
       {page === 'dashboard' && <Dashboard onNavigate={setPage} />}
       {page === 'transactions' && <Transactions />}
+      {page === 'income' && <Income />}
       {page === 'budgets' && <Budgets />}
       {page === 'goals' && <Goals />}
       {page === 'forecast' && <Forecast />}

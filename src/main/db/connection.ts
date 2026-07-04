@@ -89,6 +89,64 @@ const MIGRATIONS: string[] = [
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+  `,
+  // v2 — payslips, expected pay schedules, super/HECS balance tracking
+  `
+  CREATE TABLE pay_schedules (
+    id INTEGER PRIMARY KEY,
+    person_id INTEGER NOT NULL REFERENCES people(id),
+    name TEXT NOT NULL,
+    frequency TEXT NOT NULL CHECK (frequency IN ('weekly','biweekly','monthly')),
+    anchor_date TEXT NOT NULL,
+    expected_net_cents INTEGER NOT NULL,
+    expected_gross_cents INTEGER NOT NULL DEFAULT 0,
+    account_id INTEGER NOT NULL REFERENCES accounts(id),
+    active INTEGER NOT NULL DEFAULT 1
+  );
+
+  CREATE TABLE payslips (
+    id INTEGER PRIMARY KEY,
+    person_id INTEGER NOT NULL REFERENCES people(id),
+    pay_date TEXT NOT NULL,
+    period_start TEXT,
+    period_end TEXT,
+    employer TEXT NOT NULL DEFAULT '',
+    gross_cents INTEGER NOT NULL,
+    tax_cents INTEGER NOT NULL DEFAULT 0,
+    super_cents INTEGER NOT NULL DEFAULT 0,
+    super_extra_cents INTEGER NOT NULL DEFAULT 0,
+    hecs_cents INTEGER NOT NULL DEFAULT 0,
+    other_deductions_cents INTEGER NOT NULL DEFAULT 0,
+    net_cents INTEGER NOT NULL,
+    pay_schedule_id INTEGER REFERENCES pay_schedules(id),
+    transaction_id INTEGER REFERENCES transactions(id) ON DELETE SET NULL,
+    transaction_source TEXT NOT NULL DEFAULT 'created'
+      CHECK (transaction_source IN ('created','linked','none')),
+    pdf_path TEXT,
+    notes TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX idx_payslips_person_date ON payslips(person_id, pay_date);
+  CREATE UNIQUE INDEX idx_payslips_tx ON payslips(transaction_id) WHERE transaction_id IS NOT NULL;
+
+  CREATE TABLE tracked_balances (
+    id INTEGER PRIMARY KEY,
+    person_id INTEGER NOT NULL REFERENCES people(id),
+    kind TEXT NOT NULL CHECK (kind IN ('super','hecs')),
+    starting_cents INTEGER NOT NULL DEFAULT 0,
+    starting_date TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX idx_tracked_balances_unique ON tracked_balances(person_id, kind);
+
+  CREATE TABLE balance_adjustments (
+    id INTEGER PRIMARY KEY,
+    person_id INTEGER NOT NULL REFERENCES people(id),
+    kind TEXT NOT NULL CHECK (kind IN ('super','hecs')),
+    date TEXT NOT NULL,
+    amount_cents INTEGER NOT NULL,
+    note TEXT
+  );
+  CREATE INDEX idx_bal_adj_person_kind ON balance_adjustments(person_id, kind);
   `
 ]
 

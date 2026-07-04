@@ -1,11 +1,11 @@
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Papa from 'papaparse'
 import type { ImportResult, ImportRow } from '@shared/types'
 import { parseAmountToCents } from '@shared/money'
 import { guessColumn, parseDateFlexible, type DateConvention } from '@shared/importUtils'
 import { api } from '../api'
 import { useApp } from '../appContext'
-import { Button, Modal } from '../components/ui'
+import { Badge, Button, Modal } from '../components/ui'
 
 type Step = 'upload' | 'map' | 'done'
 
@@ -37,7 +37,13 @@ export default function ImportWizard({
   )
   const [accountId, setAccountId] = useState<number | ''>(activeAccounts[0]?.id ?? '')
   const [importing, setImporting] = useState(false)
-  const [result, setResult] = useState<(ImportResult & { invalid: number }) | null>(null)
+  const [result, setResult] = useState<
+    (ImportResult & { invalid: number; payslipExcluded: number }) | null
+  >(null)
+  // per parsed-row index: id of the payslip whose net pay the row duplicates
+  const [payslipMatches, setPayslipMatches] = useState<(number | null)[]>([])
+  // matched rows the user chose to import anyway
+  const [includeAnyway, setIncludeAnyway] = useState<Set<number>>(new Set())
   const fileRef = useRef<HTMLInputElement>(null)
 
   const loadFile = (file: File): void => {
@@ -126,6 +132,42 @@ export default function ImportWizard({
   const validRows = parsed.filter((p) => p.date != null && p.amountCents != null)
   const invalidCount = parsed.length - validRows.length
 
+  // Flag deposits that duplicate a recorded payslip's net pay. Excluded by
+  // default; the per-row checkbox overrides.
+  useEffect(() => {
+    if (step !== 'map' || parsed.length === 0) {
+      setPayslipMatches([])
+      return
+    }
+    let alive = true
+    const timer = window.setTimeout(() => {
+      api
+        .matchImportRowsToPayslips(
+          parsed.map((p) => ({ date: p.date ?? '', amountCents: p.amountCents ?? 0 })),
+          personId
+        )
+        .then((m) => {
+          if (alive) {
+            setPayslipMatches(m)
+            setIncludeAnyway(new Set())
+          }
+        })
+        .catch(() => alive && setPayslipMatches([]))
+    }, 250)
+    return () => {
+      alive = false
+      window.clearTimeout(timer)
+    }
+  }, [step, parsed, personId])
+
+  const isExcluded = (parsedIndex: number): boolean =>
+    payslipMatches[parsedIndex] != null && !includeAnyway.has(parsedIndex)
+  const excludedCount = parsed.reduce(
+    (n, p, i) => n + (p.date != null && p.amountCents != null && isExcluded(i) ? 1 : 0),
+    0
+  )
+  const importCount = validRows.length - excludedCount
+
   const runImport = async (): Promise<void> => {
     if (accountId === '') {
       toast('Choose an account', 'error')
@@ -133,14 +175,17 @@ export default function ImportWizard({
     }
     setImporting(true)
     try {
-      const payload: ImportRow[] = validRows.map((p) => ({
-        date: p.date!,
-        amountCents: p.amountCents!,
-        payee: p.payee,
-        categoryId: p.categoryId
-      }))
+      const payload: ImportRow[] = parsed
+        .map((p, i) => ({ p, i }))
+        .filter(({ p, i }) => p.date != null && p.amountCents != null && !isExcluded(i))
+        .map(({ p }) => ({
+          date: p.date!,
+          amountCents: p.amountCents!,
+          payee: p.payee,
+          categoryId: p.categoryId
+        }))
       const res = await api.importTransactions({ rows: payload, accountId, personId })
-      setResult({ ...res, invalid: invalidCount })
+      setResult({ ...res, invalid: invalidCount, payslipExcluded: excludedCount })
       setStep('done')
       await onImported()
     } catch (err) {
@@ -297,16 +342,22 @@ export default function ImportWizard({
                   <th className="px-3 py-2 text-right">Amount</th>
                   <th className="px-3 py-2">Description</th>
                   <th className="px-3 py-2">Category</th>
+                  <th className="px-3 py-2" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
                 {parsed.slice(0, 12).map((p, i) => {
                   const bad = p.date == null || p.amountCents == null
+                  const matched = !bad && payslipMatches[i] != null
                   return (
                     <tr
                       key={i}
                       className={
-                        bad ? 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300' : ''
+                        bad
+                          ? 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300'
+                          : matched && isExcluded(i)
+                            ? 'bg-amber-50/60 text-slate-400 dark:bg-amber-950/20 dark:text-slate-500'
+                            : ''
                       }
                     >
                       <td className="whitespace-nowrap px-3 py-1.5 tabular-nums">
@@ -321,6 +372,28 @@ export default function ImportWizard({
                           ? categories.find((c) => c.id === p.categoryId)?.name
                           : '—'}
                       </td>
+                      <td className="whitespace-nowrap px-3 py-1.5 text-right">
+                        {matched && (
+                          <span className="inline-flex items-center gap-2">
+                            <Badge tone="warn">matches payslip</Badge>
+                            <label className="flex items-center gap-1 text-xs">
+                              <input
+                                type="checkbox"
+                                checked={includeAnyway.has(i)}
+                                onChange={(e) => {
+                                  setIncludeAnyway((prev) => {
+                                    const next = new Set(prev)
+                                    if (e.target.checked) next.add(i)
+                                    else next.delete(i)
+                                    return next
+                                  })
+                                }}
+                              />
+                              import anyway
+                            </label>
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
@@ -329,7 +402,13 @@ export default function ImportWizard({
           </div>
           <div className="flex items-center justify-between">
             <span className="text-sm text-slate-500 dark:text-slate-400">
-              {validRows.length} of {parsed.length} rows ready
+              {importCount} of {parsed.length} rows ready
+              {excludedCount > 0 && (
+                <span className="text-amber-600 dark:text-amber-400">
+                  {' '}
+                  · {excludedCount} matched payslip{excludedCount > 1 ? 's' : ''} excluded
+                </span>
+              )}
               {invalidCount > 0 && (
                 <span className="text-red-500">
                   {' '}
@@ -342,9 +421,9 @@ export default function ImportWizard({
               <Button
                 variant="primary"
                 onClick={runImport}
-                disabled={importing || validRows.length === 0 || dateCol < 0 || amountCol < 0}
+                disabled={importing || importCount === 0 || dateCol < 0 || amountCol < 0}
               >
-                {importing ? 'Importing…' : `Import ${validRows.length} rows`}
+                {importing ? 'Importing…' : `Import ${importCount} rows`}
               </Button>
             </div>
           </div>
@@ -358,6 +437,12 @@ export default function ImportWizard({
             <p className="text-lg font-semibold">
               {result.imported} imported · {result.skipped} skipped as duplicates
             </p>
+            {result.payslipExcluded > 0 && (
+              <p className="mt-1 text-sm text-slate-500">
+                {result.payslipExcluded} deposit{result.payslipExcluded > 1 ? 's were' : ' was'}{' '}
+                skipped as payslip income already in the ledger.
+              </p>
+            )}
             {result.invalid > 0 && (
               <p className="mt-1 text-sm text-slate-500">
                 {result.invalid} rows could not be parsed and were left out.

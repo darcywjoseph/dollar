@@ -3,11 +3,15 @@ import { createHash } from 'crypto'
 import type {
   Account,
   AppSettings,
+  BalanceAdjustment,
   Budget,
   Category,
+  PaySchedule,
+  Payslip,
   Person,
   RecurringRule,
   SavingsGoal,
+  TrackedBalance,
   Transaction
 } from '@shared/types'
 
@@ -102,6 +106,65 @@ export function rowToGoal(r: any): SavingsGoal {
     personId: r.person_id,
     accountIds: ids,
     createdAt: r.created_at
+  }
+}
+
+export function rowToPayslip(r: any): Payslip {
+  return {
+    id: r.id,
+    personId: r.person_id,
+    payDate: r.pay_date,
+    periodStart: r.period_start,
+    periodEnd: r.period_end,
+    employer: r.employer,
+    grossCents: r.gross_cents,
+    taxCents: r.tax_cents,
+    superCents: r.super_cents,
+    superExtraCents: r.super_extra_cents,
+    hecsCents: r.hecs_cents,
+    otherDeductionsCents: r.other_deductions_cents,
+    netCents: r.net_cents,
+    payScheduleId: r.pay_schedule_id,
+    transactionId: r.transaction_id,
+    transactionSource: r.transaction_source,
+    pdfPath: r.pdf_path,
+    notes: r.notes,
+    createdAt: r.created_at
+  }
+}
+
+export function rowToPaySchedule(r: any): PaySchedule {
+  return {
+    id: r.id,
+    personId: r.person_id,
+    name: r.name,
+    frequency: r.frequency,
+    anchorDate: r.anchor_date,
+    expectedNetCents: r.expected_net_cents,
+    expectedGrossCents: r.expected_gross_cents,
+    accountId: r.account_id,
+    active: !!r.active
+  }
+}
+
+export function rowToTrackedBalance(r: any): TrackedBalance {
+  return {
+    id: r.id,
+    personId: r.person_id,
+    kind: r.kind,
+    startingCents: r.starting_cents,
+    startingDate: r.starting_date
+  }
+}
+
+export function rowToBalanceAdjustment(r: any): BalanceAdjustment {
+  return {
+    id: r.id,
+    personId: r.person_id,
+    kind: r.kind,
+    date: r.date,
+    amountCents: r.amount_cents,
+    note: r.note
   }
 }
 

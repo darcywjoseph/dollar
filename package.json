@@ -24,7 +24,8 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "better-sqlite3": "^12.2.0"
+    "better-sqlite3": "^12.2.0",
+    "pdfjs-dist": "^4.10.38"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

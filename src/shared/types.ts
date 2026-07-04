@@ -225,6 +225,24 @@ export interface ImportResult {
   skipped: number
 }
 
+/** One row parsed out of a PDF bank statement. */
+export interface StatementTransaction {
+  /** ISO date; the year is inferred from the statement period */
+  date: string
+  /** Signed integer cents: deposits positive, withdrawals negative */
+  amountCents: number
+  description: string
+}
+
+export interface StatementParseResult {
+  /** Statement period detected from the PDF header, when present */
+  periodStart: string | null
+  periodEnd: string | null
+  transactions: StatementTransaction[]
+  /** Rows that could not be fully parsed, described for the user */
+  warnings: string[]
+}
+
 export interface RecurringRuleInput {
   name: string
   amountCents: number
@@ -571,6 +589,8 @@ export interface LedgerApi {
   deleteTransactions(ids: number[]): Promise<number>
   getPayeeSuggestions(): Promise<PayeeSuggestion[]>
   importTransactions(req: ImportRequest): Promise<ImportResult>
+  /** parse a PDF bank statement's text into candidate import rows */
+  parseStatementPdf(data: ArrayBuffer): Promise<StatementParseResult>
 
   listPayslips(filter: PayslipFilter): Promise<Payslip[]>
   createPayslip(input: PayslipInput, opts: PayslipSaveOptions): Promise<Payslip>

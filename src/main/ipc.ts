@@ -28,6 +28,7 @@ import * as backup from './db/backup'
 import * as payslips from './db/payslips'
 import * as income from './db/income'
 import { getSettings, setSetting } from './db/helpers'
+import { parseStatementPdf } from './statementPdf'
 
 const SETTING_KEYS = new Set([
   'currencySymbol',
@@ -86,6 +87,7 @@ export function registerIpcHandlers(db: DB, getWindow: () => BrowserWindow | nul
   handle('deleteTransactions', (ids: number[]) => tx.deleteTransactions(db, ids))
   handle('getPayeeSuggestions', () => tx.getPayeeSuggestions(db))
   handle('importTransactions', (req: ImportRequest) => tx.importTransactions(db, req))
+  handle('parseStatementPdf', (data: ArrayBuffer | Uint8Array) => parseStatementPdf(data))
 
   // Reads the picked file's bytes so failures surface before anything is saved.
   const readPdfSource = async (sourcePath: string): Promise<{ filename: string; data: Buffer }> => {

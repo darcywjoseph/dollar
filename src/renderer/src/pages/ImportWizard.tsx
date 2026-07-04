@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Papa from 'papaparse'
-import type { ImportResult, ImportRow } from '@shared/types'
+import type { ImportResult, ImportRow, StatementParseResult } from '@shared/types'
 import { parseAmountToCents } from '@shared/money'
+import { formatDateDisplay } from '@shared/dates'
 import { guessColumn, parseDateFlexible, type DateConvention } from '@shared/importUtils'
 import { api } from '../api'
 import { useApp } from '../appContext'
@@ -24,6 +25,9 @@ export default function ImportWizard({
   const [headers, setHeaders] = useState<string[]>([])
   const [rows, setRows] = useState<string[][]>([])
   const [hasHeader, setHasHeader] = useState(true)
+  // set when the rows came from a PDF bank statement rather than a CSV
+  const [statement, setStatement] = useState<StatementParseResult | null>(null)
+  const [readingPdf, setReadingPdf] = useState(false)
 
   // mapping
   const [dateCol, setDateCol] = useState(-1)
@@ -86,9 +90,37 @@ export default function ImportWizard({
     setCategoryCol(guessColumn(hdrs, 'category'))
   }
 
+  const loadPdf = async (file: File): Promise<void> => {
+    setReadingPdf(true)
+    try {
+      const res = await api.parseStatementPdf(await file.arrayBuffer())
+      // Present the statement as a pre-mapped three-column table so the
+      // existing mapping/preview/dedup flow applies unchanged.
+      const data = [
+        ['Date', 'Amount', 'Description'],
+        ...res.transactions.map((t) => [t.date, (t.amountCents / 100).toFixed(2), t.description])
+      ]
+      rawData.current = data
+      setStatement(res)
+      setFileName(file.name)
+      setHasHeader(true)
+      applyRows(data, true)
+      setStep('map')
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    } finally {
+      setReadingPdf(false)
+    }
+  }
+
   // full raw data kept so the header toggle can re-derive
   const rawData = useRef<string[][]>([])
   const onFile = (file: File): void => {
+    if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
+      void loadPdf(file)
+      return
+    }
+    setStatement(null)
     Papa.parse<string[]>(file, {
       skipEmptyLines: 'greedy',
       complete: (res) => {
@@ -212,30 +244,33 @@ export default function ImportWizard({
   )
 
   return (
-    <Modal title={`Import CSV${fileName ? ` — ${fileName}` : ''}`} onClose={onClose} wide>
+    <Modal title={`Import transactions${fileName ? ` — ${fileName}` : ''}`} onClose={onClose} wide>
       {step === 'upload' && (
         <div className="space-y-4">
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Pick a CSV exported from your bank. You&apos;ll map its columns in the next step —
-            nothing is imported until you confirm.
+            Pick a CSV export or a PDF statement from your bank. You&apos;ll review everything in
+            the next step — nothing is imported until you confirm.
           </p>
           <div
             className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 py-14 text-slate-500 transition hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-600"
-            onClick={() => fileRef.current?.click()}
+            onClick={() => !readingPdf && fileRef.current?.click()}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault()
               const f = e.dataTransfer.files?.[0]
-              if (f) onFile(f)
+              if (f && !readingPdf) onFile(f)
             }}
           >
             <span className="text-3xl">📄</span>
-            <span className="text-sm font-medium">Click to choose a file, or drop it here</span>
+            <span className="text-sm font-medium">
+              {readingPdf ? 'Reading statement…' : 'Click to choose a file, or drop it here'}
+            </span>
+            <span className="text-xs">CSV or PDF bank statement</span>
           </div>
           <input
             ref={fileRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,text/csv,.pdf,application/pdf"
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0]
@@ -247,6 +282,27 @@ export default function ImportWizard({
 
       {step === 'map' && (
         <div className="space-y-5">
+          {statement && (
+            <div className="rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+              {statement.periodStart && statement.periodEnd
+                ? `Statement period ${formatDateDisplay(statement.periodStart)} – ${formatDateDisplay(statement.periodEnd)} · `
+                : ''}
+              {statement.transactions.length} transaction
+              {statement.transactions.length === 1 ? '' : 's'} found in the PDF
+            </div>
+          )}
+          {statement && statement.warnings.length > 0 && (
+            <div className="space-y-1 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+              <p className="font-medium">
+                Some parts of the statement could not be read — check these against the PDF:
+              </p>
+              <ul className="list-inside list-disc">
+                {statement.warnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <div>
               <label className="label">Date column</label>

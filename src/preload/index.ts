@@ -18,6 +18,7 @@ const CHANNELS = [
   'deleteTransactions',
   'getPayeeSuggestions',
   'importTransactions',
+  'parseStatementPdf',
   'listPayslips',
   'createPayslip',
   'updatePayslip',

@@ -1,7 +1,7 @@
 {
   "name": "dollar",
   "productName": "dollar",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "budget tool designed for two users to track their finances together.",
   "main": "./out/main/index.js",
   "author": "Darcy Joseph",

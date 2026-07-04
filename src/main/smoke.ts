@@ -124,6 +124,47 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
   checkStatement(parseBankStatement(stmtLines), 'statement lines')
   // through a real PDF: exercises pdf.js text extraction end to end
   checkStatement(await parseStatementPdf(buildTestPdf(stmtLines)), 'statement pdf')
+
+  // --- NetBank "Transaction Summary" letter format ---
+  const summaryLines = [
+    'Account Number 067873 23355473',
+    'Here is your account information and a list of transactions from 01/05/26-04/07/26.',
+    'Date Transaction details Amount Balance',
+    '07 May 2026 Transfer from xxxx CommBank app $650.00 $650.00',
+    '09 May 2026 Transfer To Henley Beach Rentals -$1,300.00 -$650.00',
+    'CommBank App Rent',
+    'Value Date: 10/05/2026',
+    '21 May 2026 CRUNCHY BITES ADELAIDE AU -$12.64 -$662.64',
+    'Created 04/07/26 11:15pm (Sydney/Melbourne time)',
+    'While this letter is accurate, we are not responsible for reliance on it.',
+    'Date Transaction details Amount Balance',
+    '22 May 2026 Transfer from xxxx CommBank app $1,100.00 $437.36',
+    'Rent',
+    'Any pending transactions have not been included in this list.',
+    'This line is footer text that must not attach to a transaction.'
+  ]
+  const summary = parseBankStatement(summaryLines)
+  assert(
+    summary.periodStart === '2026-05-01' && summary.periodEnd === '2026-07-04',
+    `summary: period from slash dates (got ${summary.periodStart}..${summary.periodEnd})`
+  )
+  assert(summary.warnings.length === 0, `summary: no warnings (got ${summary.warnings[0]})`)
+  assert(
+    summary.transactions.length === 4,
+    `summary: row count (got ${summary.transactions.length})`
+  )
+  const [sa, sb, sc, sd] = summary.transactions
+  assert(sa.date === '2026-05-07' && sa.amountCents === 65000, 'summary: credit row')
+  assert(
+    sb.amountCents === -130000 &&
+      sb.description === 'Transfer To Henley Beach Rentals CommBank App Rent',
+    `summary: trailing description attaches, value date dropped (got ${JSON.stringify(sb)})`
+  )
+  assert(sc.amountCents === -1264, 'summary: negative balance row')
+  assert(
+    sd.amountCents === 110000 && sd.description === 'Transfer from xx4246 CommBank app Rent',
+    `summary: footer text not attached (got ${JSON.stringify(sd)})`
+  )
   results.statementPdf = 'ok'
 
   // --- sample data: savings account, categories, several months of txs ---

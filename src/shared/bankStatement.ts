@@ -1,10 +1,14 @@
-// Parser for text extracted from PDF bank statements (CommBank layout).
+// Parser for text extracted from CommBank PDFs, in either of two layouts:
 //
-// Statements list transactions as "DD Mon <description…>" with the amount and
-// running balance on the row's last line. Rows carry no year — it is inferred
-// from the statement period in the header. The balance column is signed
-// ("CR"/"DR"), so the sign of each amount comes from the balance delta rather
-// than from guessing which visual column the amount sat in.
+// Mailed statements list transactions as "DD Mon <description…>" with the
+// amount and running balance on the row's last line. Rows carry no year — it
+// is inferred from the statement period in the header. The balance column is
+// signed ("CR"/"DR"), so the sign of each amount comes from the balance delta
+// rather than from guessing which visual column the amount sat in.
+//
+// NetBank "Transaction Summary" letters instead put the full date, the
+// explicitly signed dollar amount and the balance on one line, with extra
+// description lines following the row rather than preceding the amount.
 
 import { compareISO, isValidISO, toISO } from './dates'
 import type { StatementParseResult, StatementTransaction } from './types'
@@ -49,6 +53,15 @@ function parseFullDate(s: string): string | null {
   return isValidISO(iso) ? iso : null
 }
 
+/** "01/05/26" or "01/05/2026" (DD/MM/YY[YY]) -> ISO date. */
+function parseSlashDate(s: string): string | null {
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/)
+  if (!m) return null
+  const year = Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3])
+  const iso = toISO(year, Number(m[2]), Number(m[1]))
+  return isValidISO(iso) ? iso : null
+}
+
 // Print-margin artifacts that the text extraction can merge into real lines:
 // "=a", "5Ï1)", bare asterisks.
 const JUNK_TOKEN = /(?:^|\s)(?:=[a-z]|\d+Ï\d+\)|\*)(?=\s|$)/g
@@ -65,7 +78,13 @@ function isNoiseLine(line: string): boolean {
     /^Account Number\b/.test(line) ||
     /^[\d ]{7,}$/.test(line) || // account number / mail barcode digits
     /^Date Transaction Debit Credit Balance$/i.test(line) ||
-    /^\d{3}\.\d{3,4}\.\d+\.\d+ ZZ/.test(line) // printer control codes
+    /^\d{3}\.\d{3,4}\.\d+\.\d+ ZZ/.test(line) || // printer control codes
+    // Transaction Summary furniture. These also mark the end of the table, so
+    // the parser stops attaching description lines when it sees one.
+    /^Date Transaction details Amount Balance$/i.test(line) ||
+    /^Created \d{1,2}\/\d{1,2}\/\d{2}/.test(line) ||
+    /^Any pending transactions\b/i.test(line) ||
+    /^Transaction Summary v/.test(line)
   )
 }
 
@@ -74,10 +93,15 @@ function isNoiseLine(line: string): boolean {
 const ROW_END = /^(.*?)\s*(\d[\d,]*\.\d{2}) (\d[\d,]*\.\d{2}) (CR|DR)$/
 // A new row begins with a day + month name (year only on opening/closing rows).
 const ROW_START = /^(\d{1,2}) ([A-Za-z]{3})\b\s*(.*)$/
+// A complete Transaction Summary row: full date, details, signed dollar
+// amount, dollar balance. Backtracking makes the last two $ tokens win even
+// when the details text itself contains a dollar amount.
+const SUMMARY_ROW =
+  /^(\d{1,2}) ([A-Za-z]{3,9}) (\d{4})\s+(.*?)\s*(-?)\$([\d,]+\.\d{2})\s+(-?)\$([\d,]+\.\d{2})$/
 
 /** Metadata lines that would clutter the payee ("Card xx6122", "Value Date …"). */
 function isCardMetadata(part: string): boolean {
-  return /^Card (?:xx|\*+|\d)/i.test(part) || /^Value Date \d{2}\/\d{2}\/\d{4}$/.test(part)
+  return /^Card (?:xx|\*+|\d)/i.test(part) || /^Value Date:? \d{2}\/\d{2}\/\d{4}$/.test(part)
 }
 
 interface PendingRow {
@@ -87,10 +111,13 @@ interface PendingRow {
 }
 
 export function parseBankStatement(rawLines: string[]): StatementParseResult {
-  const lines = rawLines.map(cleanLine).filter((l) => l !== '' && !isNoiseLine(l))
+  // Noise lines are kept here and skipped inside the loop: seeing one tells
+  // the summary-format logic that the transaction table has been interrupted.
+  const lines = rawLines.map(cleanLine).filter((l) => l !== '')
 
-  // Statement period, e.g. "Period 2 Dec 2025 - 3 Jun 2026". The two years
-  // anchor the day-month-only transaction dates.
+  // Statement period, e.g. "Period 2 Dec 2025 - 3 Jun 2026" or (Transaction
+  // Summary) "… transactions from 01/05/26-04/07/26". The two years anchor
+  // the day-month-only transaction dates of the statement format.
   let periodStart: string | null = null
   let periodEnd: string | null = null
   for (const line of lines) {
@@ -98,6 +125,12 @@ export function parseBankStatement(rawLines: string[]): StatementParseResult {
     if (m) {
       periodStart = parseFullDate(m[1])
       periodEnd = parseFullDate(m[2])
+      if (periodStart && periodEnd) break
+    }
+    const s = line.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})\s*[-–]\s*(\d{1,2}\/\d{1,2}\/\d{2,4})/)
+    if (s) {
+      periodStart = parseSlashDate(s[1])
+      periodEnd = parseSlashDate(s[2])
       if (periodStart && periodEnd) break
     }
   }
@@ -134,6 +167,8 @@ export function parseBankStatement(rawLines: string[]): StatementParseResult {
   // completed row) anchors it.
   let balance: number | null = null
   let pending: PendingRow | null = null
+  // Last Transaction Summary row, still accepting follow-on description lines.
+  let openSummary: StatementTransaction | null = null
 
   const flushPendingAsLost = (): void => {
     if (pending) {
@@ -143,6 +178,34 @@ export function parseBankStatement(rawLines: string[]): StatementParseResult {
   }
 
   for (const line of lines) {
+    if (isNoiseLine(line)) {
+      openSummary = null
+      continue
+    }
+
+    // Transaction Summary row: everything is on one line, sign included.
+    const sm = line.match(SUMMARY_ROW)
+    const smMonth = sm ? monthFromName(sm[2]) : null
+    if (sm && smMonth) {
+      flushPendingAsLost()
+      openSummary = null
+      const date = toISO(Number(sm[3]), smMonth, Number(sm[1]))
+      const description = sm[4].trim() || 'Transaction'
+      if (!isValidISO(date)) {
+        warn(`"${description}": invalid date "${sm[1]} ${sm[2]} ${sm[3]}"; skipped`)
+        continue
+      }
+      const signed = (sm[5] === '-' ? -1 : 1) * moneyToCents(sm[6])
+      const newBalance = (sm[7] === '-' ? -1 : 1) * moneyToCents(sm[8])
+      if (balance != null && newBalance - balance !== signed) {
+        warn(`"${description}" (${date}): amount does not match the balance movement`)
+      }
+      openSummary = { date, amountCents: signed, description }
+      transactions.push(openSummary)
+      balance = newBalance
+      continue
+    }
+
     // Opening balance anchors the running balance; closing balance ends a
     // statement section (multi-statement PDFs restart with a new opening).
     const m = line.match(/^(\d{1,2}) ([A-Za-z]{3,9}) (\d{4}) OPENING BALANCE\b\s*(.*)$/i)
@@ -168,11 +231,16 @@ export function parseBankStatement(rawLines: string[]): StatementParseResult {
     const startMonth = start ? monthFromName(start[2]) : null
     if (start && startMonth) {
       flushPendingAsLost()
+      openSummary = null
       pending = { day: Number(start[1]), month: startMonth, parts: [] }
       if (start[3]) pending.parts.push(start[3])
       // fall through: a single-line row also ends on this line
     } else if (pending) {
       pending.parts.push(line)
+    } else if (openSummary) {
+      // Summary format: extra description lines follow the completed row.
+      if (!isCardMetadata(line)) openSummary.description += ` ${line}`
+      continue
     } else {
       continue // preamble/footer text between rows
     }
@@ -219,6 +287,14 @@ export function parseBankStatement(rawLines: string[]): StatementParseResult {
     pending = null
   }
   flushPendingAsLost()
+
+  // Summary rows carry full dates, so they can stand in for a missing period.
+  if (!periodStart || !periodEnd) {
+    for (const t of transactions) {
+      if (!periodStart || compareISO(t.date, periodStart) < 0) periodStart = t.date
+      if (!periodEnd || compareISO(t.date, periodEnd) > 0) periodEnd = t.date
+    }
+  }
 
   return { periodStart, periodEnd, transactions, warnings }
 }

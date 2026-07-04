@@ -1,0 +1,33 @@
+appId: com.darcyjoseph.dollar
+productName: dollar
+directories:
+  buildResources: build
+  output: dist
+files:
+  - out/**
+  - package.json
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,README.md}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,tailwind.config.js,postcss.config.js}'
+asarUnpack:
+  - node_modules/better-sqlite3/**
+npmRebuild: true
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64
+  category: public.app-category.finance
+  identity: null
+win:
+  target:
+    - nsis
+linux:
+  target:
+    - AppImage
+  category: Finance

@@ -3,7 +3,7 @@ import type { BudgetGrid } from '@shared/types'
 import { currentMonthKey } from '@shared/dates'
 import { parseAmountToCents } from '@shared/money'
 import { api } from '../api'
-import { useApp } from '../store'
+import { useApp } from '../appContext'
 import { Button, Card, EmptyState, MonthNav, ProgressBar, Spinner } from '../components/ui'
 
 export default function Budgets(): React.JSX.Element {

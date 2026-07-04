@@ -3,7 +3,7 @@ import type { GoalProgress, SavingsGoal } from '@shared/types'
 import { formatDateDisplay } from '@shared/dates'
 import { parseAmountToCents } from '@shared/money'
 import { api } from '../api'
-import { useApp } from '../store'
+import { useApp } from '../appContext'
 import { Badge, Button, Card, EmptyState, Modal, ProgressBar, Spinner } from '../components/ui'
 
 export default function Goals(): React.JSX.Element {

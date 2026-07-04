@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import type { YearReport } from '@shared/types'
 import { formatMonthKey } from '@shared/dates'
 import { api } from '../api'
-import { useApp } from '../store'
+import { useApp } from '../appContext'
 import { Button, Card, EmptyState, Money, Spinner } from '../components/ui'
 import { PersonBarChart, StackedCategoryChart } from '../components/charts'
 

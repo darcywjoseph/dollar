@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import type { Account, AccountInput, AccountType, Category, CategoryInput } from '@shared/types'
 import { parseAmountToCents } from '@shared/money'
 import { api } from '../api'
-import { useApp } from '../store'
+import { useApp } from '../appContext'
 import { Badge, Button, Card, Modal } from '../components/ui'
 
 export default function Settings(): React.JSX.Element {

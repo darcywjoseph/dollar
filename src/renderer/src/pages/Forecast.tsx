@@ -3,7 +3,7 @@ import type { ForecastData } from '@shared/types'
 import { compareISO, formatMonthKey } from '@shared/dates'
 import { parseAmountToCents } from '@shared/money'
 import { api } from '../api'
-import { useApp } from '../store'
+import { useApp } from '../appContext'
 import { Button, Card, EmptyState, Money, Spinner } from '../components/ui'
 import { ForecastChart } from '../components/charts'
 

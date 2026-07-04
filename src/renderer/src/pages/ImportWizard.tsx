@@ -4,7 +4,7 @@ import type { ImportResult, ImportRow } from '@shared/types'
 import { parseAmountToCents } from '@shared/money'
 import { guessColumn, parseDateFlexible, type DateConvention } from '@shared/importUtils'
 import { api } from '../api'
-import { useApp } from '../store'
+import { useApp } from '../appContext'
 import { Button, Modal } from '../components/ui'
 
 type Step = 'upload' | 'map' | 'done'

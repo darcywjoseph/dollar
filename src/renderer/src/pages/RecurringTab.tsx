@@ -3,7 +3,7 @@ import type { Frequency, RecurringRule } from '@shared/types'
 import { formatDateDisplay, todayISO } from '@shared/dates'
 import { parseAmountToCents } from '@shared/money'
 import { api } from '../api'
-import { useApp } from '../store'
+import { useApp } from '../appContext'
 import { Badge, Button, EmptyState, Modal, Money, Spinner } from '../components/ui'
 
 const FREQUENCIES: { value: Frequency; label: string }[] = [

@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Layout, type Page } from './components/Layout'
 import { Spinner } from './components/ui'
-import { useApp } from './store'
+import { useApp } from './appContext'
 import Dashboard from './pages/Dashboard'
 import Transactions from './pages/Transactions'
 import Budgets from './pages/Budgets'

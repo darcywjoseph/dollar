@@ -1,5 +1,5 @@
 import React from 'react'
-import { useApp } from '../store'
+import { useApp } from '../appContext'
 
 export type Page =
   'dashboard' | 'transactions' | 'budgets' | 'goals' | 'forecast' | 'reports' | 'settings'

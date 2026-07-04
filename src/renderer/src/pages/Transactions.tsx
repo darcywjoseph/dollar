@@ -4,7 +4,7 @@ import type { PayeeSuggestion, Transaction, TransactionFilter } from '@shared/ty
 import { formatDateDisplay, todayISO } from '@shared/dates'
 import { parseAmountToCents } from '@shared/money'
 import { api } from '../api'
-import { useApp } from '../store'
+import { useApp } from '../appContext'
 import { Button, EmptyState, Money, Spinner } from '../components/ui'
 import ImportWizard from './ImportWizard'
 import RecurringTab from './RecurringTab'

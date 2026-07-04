@@ -1,52 +1,10 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react'
-import type { Account, AppSettings, Bootstrap, Category, Person } from '@shared/types'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { AppSettings, Bootstrap } from '@shared/types'
 import { formatCents } from '@shared/money'
 import { api } from './api'
+import { Ctx, type AppState, type ConfirmOptions, type Toast, type ViewMode } from './appContext'
 
-export type ViewMode = 'combined' | number
-
-interface Toast {
-  id: number
-  message: string
-  type: 'success' | 'error' | 'info'
-}
-
-interface ConfirmOptions {
-  title: string
-  message: string
-  confirmLabel?: string
-  danger?: boolean
-}
-
-interface AppState {
-  ready: boolean
-  people: Person[]
-  accounts: Account[]
-  categories: Category[]
-  balances: Map<number, number>
-  settings: AppSettings
-  viewMode: ViewMode
-  isDark: boolean
-  setViewMode: (mode: ViewMode) => void
-  /** person id for queries: null in combined mode */
-  personFilter: number | null
-  fmt: (cents: number, opts?: { sign?: boolean }) => string
-  toast: (message: string, type?: Toast['type']) => void
-  confirm: (opts: ConfirmOptions) => Promise<boolean>
-  refresh: () => Promise<void>
-  updateSetting: (key: keyof AppSettings, value: string) => Promise<void>
-  personById: (id: number | null) => Person | undefined
-  categoryById: (id: number | null) => Category | undefined
-  accountById: (id: number) => Account | undefined
-}
+const EMPTY: never[] = []
 
 const DEFAULT_SETTINGS: AppSettings = {
   currencySymbol: '$',
@@ -54,14 +12,6 @@ const DEFAULT_SETTINGS: AppSettings = {
   theme: 'system',
   viewMode: 'combined',
   forecastWindow: 3
-}
-
-const Ctx = createContext<AppState | null>(null)
-
-export function useApp(): AppState {
-  const ctx = useContext(Ctx)
-  if (!ctx) throw new Error('useApp outside provider')
-  return ctx
 }
 
 let toastSeq = 0
@@ -140,9 +90,9 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
   )
 
   const settings = boot?.settings ?? DEFAULT_SETTINGS
-  const people = boot?.people ?? []
-  const accounts = boot?.accounts ?? []
-  const categories = boot?.categories ?? []
+  const people = boot?.people ?? EMPTY
+  const accounts = boot?.accounts ?? EMPTY
+  const categories = boot?.categories ?? EMPTY
   const balances = useMemo(
     () => new Map((boot?.balances ?? []).map((b) => [b.accountId, b.balanceCents])),
     [boot]

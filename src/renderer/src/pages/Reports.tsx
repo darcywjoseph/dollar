@@ -129,7 +129,11 @@ export default function Reports(): React.JSX.Element {
         <Spinner />
       ) : !hasData ? (
         <Card>
-          <EmptyState icon="▤" title={`No activity in ${year}`} message="Transactions recorded in this year will be summarized here." />
+          <EmptyState
+            icon="▤"
+            title={`No activity in ${year}`}
+            message="Transactions recorded in this year will be summarized here."
+          />
         </Card>
       ) : (
         <>
@@ -148,8 +152,12 @@ export default function Reports(): React.JSX.Element {
                   {report.byMonth.map((m) => (
                     <tr key={m.month} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
                       <td className="px-3 py-2 font-medium">{formatMonthKey(m.month)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{m.incomeCents > 0 ? fmt(m.incomeCents) : '—'}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{m.spendingCents > 0 ? fmt(m.spendingCents) : '—'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {m.incomeCents > 0 ? fmt(m.incomeCents) : '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {m.spendingCents > 0 ? fmt(m.spendingCents) : '—'}
+                      </td>
                       <td className="px-3 py-2 text-right font-medium">
                         {m.incomeCents === 0 && m.spendingCents === 0 ? (
                           <span className="text-slate-300 dark:text-slate-600">—</span>
@@ -163,10 +171,19 @@ export default function Reports(): React.JSX.Element {
                 <tfoot>
                   <tr className="border-t border-slate-200 font-semibold dark:border-slate-700">
                     <td className="px-3 py-2.5">Total {year}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{fmt(yearTotals.income)}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{fmt(yearTotals.spending)}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {fmt(yearTotals.income)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">
+                      {fmt(yearTotals.spending)}
+                    </td>
                     <td className="px-3 py-2.5 text-right">
-                      <Money cents={yearTotals.income - yearTotals.spending} fmt={fmt} colored sign />
+                      <Money
+                        cents={yearTotals.income - yearTotals.spending}
+                        fmt={fmt}
+                        colored
+                        sign
+                      />
                     </td>
                   </tr>
                 </tfoot>
@@ -176,14 +193,24 @@ export default function Reports(): React.JSX.Element {
 
           {tab === 'categories' && (
             <Card title="Spending by category, stacked by month">
-              <StackedCategoryChart months={months} series={categorySeries} symbol={settings.currencySymbol} dark={isDark} />
+              <StackedCategoryChart
+                months={months}
+                series={categorySeries}
+                symbol={settings.currencySymbol}
+                dark={isDark}
+              />
             </Card>
           )}
 
           {tab === 'people' && report && (
             <div className="space-y-4">
               <Card title="Monthly spending by person">
-                <PersonBarChart months={months} series={personSeries} symbol={settings.currencySymbol} dark={isDark} />
+                <PersonBarChart
+                  months={months}
+                  series={personSeries}
+                  symbol={settings.currencySymbol}
+                  dark={isDark}
+                />
               </Card>
               <Card title={`Totals for ${year}`}>
                 <table className="w-full text-sm">
@@ -204,7 +231,10 @@ export default function Reports(): React.JSX.Element {
                         <tr key={p.id}>
                           <td className="px-3 py-2">
                             <span className="inline-flex items-center gap-1.5 font-medium">
-                              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: p.color }} />
+                              <span
+                                className="h-2.5 w-2.5 rounded-full"
+                                style={{ backgroundColor: p.color }}
+                              />
                               {p.name}
                             </span>
                           </td>
@@ -224,8 +254,8 @@ export default function Reports(): React.JSX.Element {
         </>
       )}
       <p className="text-xs text-slate-400">
-        Looking for exports? Transactions can be exported to CSV from the Transactions page; full JSON backup lives in
-        Settings → Data.
+        Looking for exports? Transactions can be exported to CSV from the Transactions page; full
+        JSON backup lives in Settings → Data.
       </p>
     </div>
   )

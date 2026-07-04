@@ -64,7 +64,11 @@ export function createTransaction(
   return rowToTransaction(db.prepare('SELECT * FROM transactions WHERE id = ?').get(id))
 }
 
-export function updateTransaction(db: DB, id: number, patch: Partial<TransactionInput>): Transaction {
+export function updateTransaction(
+  db: DB,
+  id: number,
+  patch: Partial<TransactionInput>
+): Transaction {
   const row = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id)
   if (!row) throw new Error('Transaction not found')
   const current = rowToTransaction(row)
@@ -134,7 +138,9 @@ function buildFilterSql(filter: TransactionFilter): { where: string; params: unk
     params.push(filter.dateTo)
   }
   if (filter.search) {
-    conds.push("(t.payee LIKE '%' || ? || '%' OR t.notes LIKE '%' || ? || '%' OR t.tags LIKE '%' || ? || '%')")
+    conds.push(
+      "(t.payee LIKE '%' || ? || '%' OR t.notes LIKE '%' || ? || '%' OR t.tags LIKE '%' || ? || '%')"
+    )
     params.push(filter.search, filter.search, filter.search)
   }
   return { where: conds.length ? `WHERE ${conds.join(' AND ')}` : '', params }
@@ -157,7 +163,9 @@ export function listTransactions(db: DB, filter: TransactionFilter): Transaction
     .all(...params, limit, offset)
     .map(rowToTransaction)
   const agg = db
-    .prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(t.amount_cents), 0) AS s FROM transactions t ${where}`)
+    .prepare(
+      `SELECT COUNT(*) AS n, COALESCE(SUM(t.amount_cents), 0) AS s FROM transactions t ${where}`
+    )
     .get(...params) as { n: number; s: number }
   return { rows, total: agg.n, sumCents: agg.s }
 }
@@ -181,7 +189,12 @@ export function getPayeeSuggestions(db: DB): PayeeSuggestion[] {
        LIMIT 500`
     )
     .all() as { payee: string; category_id: number | null; account_id: number; count: number }[]
-  return rows.map((r) => ({ payee: r.payee, categoryId: r.category_id, accountId: r.account_id, count: r.count }))
+  return rows.map((r) => ({
+    payee: r.payee,
+    categoryId: r.category_id,
+    accountId: r.account_id,
+    count: r.count
+  }))
 }
 
 export function importTransactions(db: DB, req: ImportRequest): ImportResult {

@@ -7,7 +7,11 @@ import { Button, Card, EmptyState, Money, MonthNav, ProgressBar, Spinner } from 
 import { CategoryDonut, TrendChart } from '../components/charts'
 import type { Page } from '../components/Layout'
 
-export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => void }): React.JSX.Element {
+export default function Dashboard({
+  onNavigate
+}: {
+  onNavigate: (p: Page) => void
+}): React.JSX.Element {
   const { settings, personFilter, fmt, toast, categoryById, personById, isDark } = useApp()
   const [month, setMonth] = useState(() => currentMonthKey(settings.firstDayOfMonth))
   const [data, setData] = useState<DashboardSummary | null>(null)
@@ -40,7 +44,9 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
     })
   }, [data, categoryById])
 
-  const hasAnyActivity = data && (data.trend.some((t) => t.incomeCents > 0 || t.spendingCents > 0) || data.upcoming.length > 0)
+  const hasAnyActivity =
+    data &&
+    (data.trend.some((t) => t.incomeCents > 0 || t.spendingCents > 0) || data.upcoming.length > 0)
 
   if (loading && !data) return <Spinner />
   if (!data) return <></>
@@ -50,7 +56,10 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
       <div className="flex items-center justify-between">
         <MonthNav month={month} onChange={setMonth} />
         {month !== currentMonthKey(settings.firstDayOfMonth) && (
-          <Button variant="ghost" onClick={() => setMonth(currentMonthKey(settings.firstDayOfMonth))}>
+          <Button
+            variant="ghost"
+            onClick={() => setMonth(currentMonthKey(settings.firstDayOfMonth))}
+          >
             Back to current month
           </Button>
         )}
@@ -73,20 +82,40 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
         <>
           {/* summary cards */}
           <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-            <StatCard label="Income this month" value={fmt(data.incomeCents)} accent="text-emerald-700 dark:text-emerald-400" />
-            <StatCard label="Spending this month" value={fmt(data.spendingCents)} accent="text-red-600 dark:text-red-400" />
+            <StatCard
+              label="Income this month"
+              value={fmt(data.incomeCents)}
+              accent="text-emerald-700 dark:text-emerald-400"
+            />
+            <StatCard
+              label="Spending this month"
+              value={fmt(data.spendingCents)}
+              accent="text-red-600 dark:text-red-400"
+            />
             <StatCard
               label="Net this month"
               value={fmt(data.netCents, { sign: true })}
-              accent={data.netCents >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}
+              accent={
+                data.netCents >= 0
+                  ? 'text-emerald-700 dark:text-emerald-400'
+                  : 'text-red-600 dark:text-red-400'
+              }
             />
-            <StatCard label="Total savings balance" value={fmt(data.savingsBalanceCents)} accent="text-indigo-600 dark:text-indigo-400" />
+            <StatCard
+              label="Total savings balance"
+              value={fmt(data.savingsBalanceCents)}
+              accent="text-indigo-600 dark:text-indigo-400"
+            />
           </div>
 
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <Card title="Spending by category">
               {donutData.length === 0 ? (
-                <EmptyState icon="🧾" title="No spending yet" message="Expenses recorded this month will appear here." />
+                <EmptyState
+                  icon="🧾"
+                  title="No spending yet"
+                  message="Expenses recorded this month will appear here."
+                />
               ) : (
                 <CategoryDonut data={donutData} fmt={fmt} dark={isDark} />
               )}
@@ -124,7 +153,12 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
                             {fmt(b.actualCents)} / {fmt(b.budgetedCents)}
                           </span>
                         </div>
-                        <ProgressBar value={b.actualCents} max={b.budgetedCents} color={cat?.color} over={over} />
+                        <ProgressBar
+                          value={b.actualCents}
+                          max={b.budgetedCents}
+                          color={cat?.color}
+                          over={over}
+                        />
                       </li>
                     )
                   })}
@@ -174,7 +208,15 @@ export default function Dashboard({ onNavigate }: { onNavigate: (p: Page) => voi
   )
 }
 
-function StatCard({ label, value, accent }: { label: string; value: string; accent: string }): React.JSX.Element {
+function StatCard({
+  label,
+  value,
+  accent
+}: {
+  label: string
+  value: string
+  accent: string
+}): React.JSX.Element {
   return (
     <div className="card p-5">
       <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</div>

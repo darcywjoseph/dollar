@@ -107,9 +107,14 @@ export function CategoryDonut({
       <ul className="min-w-0 flex-1 space-y-1.5 text-sm">
         {data.slice(0, 8).map((d) => (
           <li key={d.name} className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: d.color }} />
+            <span
+              className="h-2.5 w-2.5 shrink-0 rounded-sm"
+              style={{ backgroundColor: d.color }}
+            />
             <span className="truncate text-slate-600 dark:text-slate-300">{d.name}</span>
-            <span className="ml-auto tabular-nums text-slate-800 dark:text-slate-100">{fmt(d.value)}</span>
+            <span className="ml-auto tabular-nums text-slate-800 dark:text-slate-100">
+              {fmt(d.value)}
+            </span>
             <span className="w-10 text-right text-xs tabular-nums text-slate-400">
               {total > 0 ? Math.round((d.value / total) * 100) : 0}%
             </span>
@@ -147,7 +152,12 @@ export function TrendChart({
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={rows} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
           <CartesianGrid stroke={t.grid} strokeDasharray="0" vertical={false} />
-          <XAxis dataKey="name" tick={{ fill: t.ink, fontSize: 11 }} tickLine={false} axisLine={{ stroke: t.grid }} />
+          <XAxis
+            dataKey="name"
+            tick={{ fill: t.ink, fontSize: 11 }}
+            tickLine={false}
+            axisLine={{ stroke: t.grid }}
+          />
           <YAxis
             tick={{ fill: t.ink, fontSize: 11 }}
             tickLine={false}
@@ -157,11 +167,27 @@ export function TrendChart({
           />
           <Tooltip
             contentStyle={tooltipStyle(dark)}
-            formatter={(v) => `${symbol}${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+            formatter={(v) =>
+              `${symbol}${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+            }
           />
           <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Line type="monotone" dataKey="Income" stroke={t.income} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
-          <Line type="monotone" dataKey="Spending" stroke={t.spending} strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
+          <Line
+            type="monotone"
+            dataKey="Income"
+            stroke={t.income}
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 4 }}
+          />
+          <Line
+            type="monotone"
+            dataKey="Spending"
+            stroke={t.spending}
+            strokeWidth={2}
+            dot={false}
+            activeDot={{ r: 4 }}
+          />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -192,7 +218,12 @@ export function ForecastChart({
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={rows} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
           <CartesianGrid stroke={t.grid} vertical={false} />
-          <XAxis dataKey="name" tick={{ fill: t.ink, fontSize: 11 }} tickLine={false} axisLine={{ stroke: t.grid }} />
+          <XAxis
+            dataKey="name"
+            tick={{ fill: t.ink, fontSize: 11 }}
+            tickLine={false}
+            axisLine={{ stroke: t.grid }}
+          />
           <YAxis
             tick={{ fill: t.ink, fontSize: 11 }}
             tickLine={false}
@@ -203,10 +234,19 @@ export function ForecastChart({
           />
           <Tooltip
             contentStyle={tooltipStyle(dark)}
-            formatter={(v) => `${symbol}${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+            formatter={(v) =>
+              `${symbol}${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+            }
           />
           <Legend wrapperStyle={{ fontSize: 12 }} />
-          <Line type="monotone" dataKey="Actual" stroke={t.accent} strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+          <Line
+            type="monotone"
+            dataKey="Actual"
+            stroke={t.accent}
+            strokeWidth={2.5}
+            dot={false}
+            activeDot={{ r: 4 }}
+          />
           <Line
             type="monotone"
             dataKey="Projected"
@@ -249,7 +289,12 @@ export function StackedCategoryChart({
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={rows} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
           <CartesianGrid stroke={t.grid} vertical={false} />
-          <XAxis dataKey="name" tick={{ fill: t.ink, fontSize: 11 }} tickLine={false} axisLine={{ stroke: t.grid }} />
+          <XAxis
+            dataKey="name"
+            tick={{ fill: t.ink, fontSize: 11 }}
+            tickLine={false}
+            axisLine={{ stroke: t.grid }}
+          />
           <YAxis
             tick={{ fill: t.ink, fontSize: 11 }}
             tickLine={false}
@@ -259,11 +304,20 @@ export function StackedCategoryChart({
           />
           <Tooltip
             contentStyle={tooltipStyle(dark)}
-            formatter={(v) => `${symbol}${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+            formatter={(v) =>
+              `${symbol}${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+            }
           />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           {series.map((s) => (
-            <Bar key={s.name} dataKey={s.name} stackId="spend" fill={s.color} stroke={t.surface} strokeWidth={1} />
+            <Bar
+              key={s.name}
+              dataKey={s.name}
+              stackId="spend"
+              fill={s.color}
+              stroke={t.surface}
+              strokeWidth={1}
+            />
           ))}
         </BarChart>
       </ResponsiveContainer>
@@ -297,7 +351,12 @@ export function PersonBarChart({
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={rows} margin={{ top: 8, right: 12, left: 4, bottom: 0 }} barGap={2}>
           <CartesianGrid stroke={t.grid} vertical={false} />
-          <XAxis dataKey="name" tick={{ fill: t.ink, fontSize: 11 }} tickLine={false} axisLine={{ stroke: t.grid }} />
+          <XAxis
+            dataKey="name"
+            tick={{ fill: t.ink, fontSize: 11 }}
+            tickLine={false}
+            axisLine={{ stroke: t.grid }}
+          />
           <YAxis
             tick={{ fill: t.ink, fontSize: 11 }}
             tickLine={false}
@@ -307,7 +366,9 @@ export function PersonBarChart({
           />
           <Tooltip
             contentStyle={tooltipStyle(dark)}
-            formatter={(v) => `${symbol}${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+            formatter={(v) =>
+              `${symbol}${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+            }
           />
           <Legend wrapperStyle={{ fontSize: 12 }} />
           {series.map((s) => (

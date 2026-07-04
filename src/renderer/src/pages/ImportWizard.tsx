@@ -32,7 +32,9 @@ export default function ImportWizard({
   const [categoryCol, setCategoryCol] = useState(-1)
   const [dateConvention, setDateConvention] = useState<DateConvention>('auto')
   const [flipSigns, setFlipSigns] = useState(false)
-  const [personId, setPersonId] = useState<number>(viewMode === 'combined' ? (people[0]?.id ?? 1) : viewMode)
+  const [personId, setPersonId] = useState<number>(
+    viewMode === 'combined' ? (people[0]?.id ?? 1) : viewMode
+  )
   const [accountId, setAccountId] = useState<number | ''>(activeAccounts[0]?.id ?? '')
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<(ImportResult & { invalid: number }) | null>(null)
@@ -46,7 +48,9 @@ export default function ImportWizard({
           toast(`Could not parse the file: ${res.errors[0].message}`, 'error')
           return
         }
-        const data = res.data.filter((r) => Array.isArray(r) && r.some((c) => String(c).trim() !== ''))
+        const data = res.data.filter(
+          (r) => Array.isArray(r) && r.some((c) => String(c).trim() !== '')
+        )
         if (data.length === 0) {
           toast('The file appears to be empty', 'error')
           return
@@ -54,7 +58,9 @@ export default function ImportWizard({
         setFileName(file.name)
         const first = data[0].map(String)
         // header detection: any cell in the first row that parses as an amount or date suggests data, not header
-        const looksLikeHeader = !first.some((c) => parseDateFlexible(c) != null || /^\s*-?\$?\d/.test(c))
+        const looksLikeHeader = !first.some(
+          (c) => parseDateFlexible(c) != null || /^\s*-?\$?\d/.test(c)
+        )
         setHasHeader(looksLikeHeader)
         applyRows(data, looksLikeHeader)
         setStep('map')
@@ -110,7 +116,9 @@ export default function ImportWizard({
       if (amountCents != null && flipSigns) amountCents = -amountCents
       const payee = descCol >= 0 ? (r[descCol] ?? '').trim() : ''
       const categoryId =
-        categoryCol >= 0 ? (categoryByName.get((r[categoryCol] ?? '').trim().toLowerCase()) ?? null) : null
+        categoryCol >= 0
+          ? (categoryByName.get((r[categoryCol] ?? '').trim().toLowerCase()) ?? null)
+          : null
       return { raw: r, date, amountCents, payee, categoryId }
     })
   }, [rows, dateCol, amountCol, descCol, categoryCol, dateConvention, flipSigns, categoryByName])
@@ -142,7 +150,11 @@ export default function ImportWizard({
     }
   }
 
-  const colSelect = (value: number, onChange: (v: number) => void, allowNone: boolean): React.JSX.Element => (
+  const colSelect = (
+    value: number,
+    onChange: (v: number) => void,
+    allowNone: boolean
+  ): React.JSX.Element => (
     <select className="input" value={value} onChange={(e) => onChange(Number(e.target.value))}>
       {allowNone && <option value={-1}>— none —</option>}
       {!allowNone && value === -1 && <option value={-1}>choose…</option>}
@@ -159,8 +171,8 @@ export default function ImportWizard({
       {step === 'upload' && (
         <div className="space-y-4">
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Pick a CSV exported from your bank. You&apos;ll map its columns in the next step — nothing is imported until
-            you confirm.
+            Pick a CSV exported from your bank. You&apos;ll map its columns in the next step —
+            nothing is imported until you confirm.
           </p>
           <div
             className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 py-14 text-slate-500 transition hover:border-indigo-400 hover:text-indigo-500 dark:border-slate-600"
@@ -209,7 +221,11 @@ export default function ImportWizard({
             </div>
             <div>
               <label className="label">Date format</label>
-              <select className="input" value={dateConvention} onChange={(e) => setDateConvention(e.target.value as DateConvention)}>
+              <select
+                className="input"
+                value={dateConvention}
+                onChange={(e) => setDateConvention(e.target.value as DateConvention)}
+              >
                 <option value="auto">Auto-detect</option>
                 <option value="mdy">MM/DD/YYYY</option>
                 <option value="dmy">DD/MM/YYYY</option>
@@ -217,7 +233,11 @@ export default function ImportWizard({
             </div>
             <div>
               <label className="label">Person</label>
-              <select className="input" value={personId} onChange={(e) => setPersonId(Number(e.target.value))}>
+              <select
+                className="input"
+                value={personId}
+                onChange={(e) => setPersonId(Number(e.target.value))}
+              >
                 {people.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -227,7 +247,11 @@ export default function ImportWizard({
             </div>
             <div>
               <label className="label">Account</label>
-              <select className="input" value={accountId} onChange={(e) => setAccountId(Number(e.target.value))}>
+              <select
+                className="input"
+                value={accountId}
+                onChange={(e) => setAccountId(Number(e.target.value))}
+              >
                 {activeAccounts.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
@@ -237,7 +261,11 @@ export default function ImportWizard({
             </div>
             <div className="flex flex-col justify-end gap-1.5 pb-1">
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={flipSigns} onChange={(e) => setFlipSigns(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={flipSigns}
+                  onChange={(e) => setFlipSigns(e.target.checked)}
+                />
                 Flip signs
               </label>
               <label className="flex items-center gap-2 text-sm">
@@ -254,10 +282,10 @@ export default function ImportWizard({
             </div>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Expenses should end up <span className="font-medium text-red-500">negative</span> and income{' '}
-            <span className="font-medium text-emerald-600">positive</span> — use “Flip signs” if your bank exports the
-            opposite convention. Duplicate rows already in dollar (same date, amount, description) are skipped
-            automatically.
+            Expenses should end up <span className="font-medium text-red-500">negative</span> and
+            income <span className="font-medium text-emerald-600">positive</span> — use “Flip signs”
+            if your bank exports the opposite convention. Duplicate rows already in dollar (same
+            date, amount, description) are skipped automatically.
           </p>
 
           {/* preview */}
@@ -275,14 +303,23 @@ export default function ImportWizard({
                 {parsed.slice(0, 12).map((p, i) => {
                   const bad = p.date == null || p.amountCents == null
                   return (
-                    <tr key={i} className={bad ? 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300' : ''}>
-                      <td className="whitespace-nowrap px-3 py-1.5 tabular-nums">{p.date ?? `⚠ ${p.raw[dateCol] ?? ''}`}</td>
+                    <tr
+                      key={i}
+                      className={
+                        bad ? 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-300' : ''
+                      }
+                    >
+                      <td className="whitespace-nowrap px-3 py-1.5 tabular-nums">
+                        {p.date ?? `⚠ ${p.raw[dateCol] ?? ''}`}
+                      </td>
                       <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums">
                         {p.amountCents != null ? fmt(p.amountCents) : `⚠ ${p.raw[amountCol] ?? ''}`}
                       </td>
                       <td className="max-w-64 truncate px-3 py-1.5">{p.payee}</td>
                       <td className="whitespace-nowrap px-3 py-1.5">
-                        {p.categoryId != null ? categories.find((c) => c.id === p.categoryId)?.name : '—'}
+                        {p.categoryId != null
+                          ? categories.find((c) => c.id === p.categoryId)?.name
+                          : '—'}
                       </td>
                     </tr>
                   )
@@ -293,11 +330,20 @@ export default function ImportWizard({
           <div className="flex items-center justify-between">
             <span className="text-sm text-slate-500 dark:text-slate-400">
               {validRows.length} of {parsed.length} rows ready
-              {invalidCount > 0 && <span className="text-red-500"> · {invalidCount} unparseable (will be skipped)</span>}
+              {invalidCount > 0 && (
+                <span className="text-red-500">
+                  {' '}
+                  · {invalidCount} unparseable (will be skipped)
+                </span>
+              )}
             </span>
             <div className="flex gap-2">
               <Button onClick={() => setStep('upload')}>Back</Button>
-              <Button variant="primary" onClick={runImport} disabled={importing || validRows.length === 0 || dateCol < 0 || amountCol < 0}>
+              <Button
+                variant="primary"
+                onClick={runImport}
+                disabled={importing || validRows.length === 0 || dateCol < 0 || amountCol < 0}
+              >
                 {importing ? 'Importing…' : `Import ${validRows.length} rows`}
               </Button>
             </div>
@@ -313,7 +359,9 @@ export default function ImportWizard({
               {result.imported} imported · {result.skipped} skipped as duplicates
             </p>
             {result.invalid > 0 && (
-              <p className="mt-1 text-sm text-slate-500">{result.invalid} rows could not be parsed and were left out.</p>
+              <p className="mt-1 text-sm text-slate-500">
+                {result.invalid} rows could not be parsed and were left out.
+              </p>
             )}
           </div>
           <div className="flex justify-center">

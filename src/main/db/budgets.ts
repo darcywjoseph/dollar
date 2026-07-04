@@ -44,10 +44,17 @@ export function getBudgetGrid(db: DB, month: string): BudgetGrid {
   return { month, rows: Array.from(rowsByCat.values()) }
 }
 
-export function setBudget(db: DB, month: string, categoryId: number, scope: string, amountCents: number): void {
+export function setBudget(
+  db: DB,
+  month: string,
+  categoryId: number,
+  scope: string,
+  amountCents: number
+): void {
   if (!/^\d{4}-\d{2}$/.test(month)) throw new Error('Invalid month')
   const personId = scopeToPersonId(scope)
-  if (!db.prepare('SELECT id FROM categories WHERE id = ?').get(categoryId)) throw new Error('Category not found')
+  if (!db.prepare('SELECT id FROM categories WHERE id = ?').get(categoryId))
+    throw new Error('Category not found')
   const rounded = Math.round(amountCents)
   if (rounded <= 0) {
     // person_id may be NULL; "IS" makes the comparison null-safe

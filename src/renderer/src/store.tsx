@@ -1,4 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react'
 import type { Account, AppSettings, Bootstrap, Category, Person } from '@shared/types'
 import { formatCents } from '@shared/money'
 import { api } from './api'
@@ -64,7 +72,9 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
   const [viewMode, setViewModeState] = useState<ViewMode>('combined')
   const [toasts, setToasts] = useState<Toast[]>([])
   const [isDark, setIsDark] = useState(false)
-  const [confirmState, setConfirmState] = useState<(ConfirmOptions & { resolve: (v: boolean) => void }) | null>(null)
+  const [confirmState, setConfirmState] = useState<
+    (ConfirmOptions & { resolve: (v: boolean) => void }) | null
+  >(null)
   const loadFailed = useRef(false)
 
   const refresh = useCallback(async () => {
@@ -114,13 +124,12 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
     return new Promise((resolve) => setConfirmState({ ...opts, resolve }))
   }, [])
 
-  const setViewMode = useCallback(
-    (mode: ViewMode) => {
-      setViewModeState(mode)
-      api.setSetting('viewMode', mode === 'combined' ? 'combined' : String(mode)).catch(() => undefined)
-    },
-    []
-  )
+  const setViewMode = useCallback((mode: ViewMode) => {
+    setViewModeState(mode)
+    api
+      .setSetting('viewMode', mode === 'combined' ? 'combined' : String(mode))
+      .catch(() => undefined)
+  }, [])
 
   const updateSetting = useCallback(
     async (key: keyof AppSettings, value: string) => {
@@ -165,7 +174,22 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
       categoryById: (id) => categories.find((c) => c.id === id),
       accountById: (id) => accounts.find((a) => a.id === id)
     }),
-    [ready, people, accounts, categories, balances, settings, viewMode, isDark, setViewMode, fmt, toast, confirm, refresh, updateSetting]
+    [
+      ready,
+      people,
+      accounts,
+      categories,
+      balances,
+      settings,
+      viewMode,
+      isDark,
+      setViewMode,
+      fmt,
+      toast,
+      confirm,
+      refresh,
+      updateSetting
+    ]
   )
 
   return (
@@ -191,10 +215,16 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
       </div>
       {/* confirm dialog */}
       {confirmState && (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal>
+        <div
+          className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/50 p-4"
+          role="dialog"
+          aria-modal
+        >
           <div className="card w-full max-w-md p-6">
             <h3 className="text-base font-semibold">{confirmState.title}</h3>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{confirmState.message}</p>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+              {confirmState.message}
+            </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
                 className="h-9 rounded-lg border border-slate-300 px-4 text-sm font-medium hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-700"
@@ -208,7 +238,9 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
               </button>
               <button
                 className={`h-9 rounded-lg px-4 text-sm font-medium text-white ${
-                  confirmState.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'
+                  confirmState.danger
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-indigo-600 hover:bg-indigo-700'
                 }`}
                 onClick={() => {
                   confirmState.resolve(true)

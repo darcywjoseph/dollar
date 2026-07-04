@@ -41,7 +41,10 @@ export default function Goals(): React.JSX.Element {
 
   if (!goals) return <Spinner />
 
-  const visible = personFilter == null ? goals : goals.filter((g) => g.goal.personId === personFilter || g.goal.personId == null)
+  const visible =
+    personFilter == null
+      ? goals
+      : goals.filter((g) => g.goal.personId === personFilter || g.goal.personId == null)
 
   return (
     <div className="space-y-4">
@@ -78,7 +81,10 @@ export default function Goals(): React.JSX.Element {
                     <div className="mt-0.5 text-xs text-slate-400">
                       {person ? (
                         <span className="inline-flex items-center gap-1">
-                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: person.color }} />
+                          <span
+                            className="h-2 w-2 rounded-full"
+                            style={{ backgroundColor: person.color }}
+                          />
                           {person.name}
                         </span>
                       ) : (
@@ -101,7 +107,11 @@ export default function Goals(): React.JSX.Element {
                   <span className="text-xl font-semibold tabular-nums">{fmt(gp.currentCents)}</span>
                   <span className="text-sm text-slate-400">of {fmt(g.targetCents)}</span>
                 </div>
-                <ProgressBar value={gp.currentCents} max={g.targetCents} color={done ? '#0ca30c' : person?.color ?? '#6366f1'} />
+                <ProgressBar
+                  value={gp.currentCents}
+                  max={g.targetCents}
+                  color={done ? '#0ca30c' : (person?.color ?? '#6366f1')}
+                />
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500 dark:text-slate-400">
                   <div>
                     <div className="font-medium text-slate-400">Avg monthly contribution</div>
@@ -190,27 +200,51 @@ function GoalModal({
     }
   }
 
-  const sorted = [...accounts].filter((a) => !a.archived).sort((a, b) => Number(b.type === 'savings') - Number(a.type === 'savings'))
+  const sorted = [...accounts]
+    .filter((a) => !a.archived)
+    .sort((a, b) => Number(b.type === 'savings') - Number(a.type === 'savings'))
 
   return (
     <Modal title={goal ? 'Edit goal' : 'New savings goal'} onClose={onClose}>
       <form className="space-y-4" onSubmit={submit}>
         <div>
           <label className="label">Name</label>
-          <input className="input" required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Emergency fund" />
+          <input
+            className="input"
+            required
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Emergency fund"
+          />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="label">Target ({settings.currencySymbol})</label>
-            <input className="input text-right" required inputMode="decimal" value={target} onChange={(e) => setTarget(e.target.value)} />
+            <input
+              className="input text-right"
+              required
+              inputMode="decimal"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">Target date (optional)</label>
-            <input type="date" className="input" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+            <input
+              type="date"
+              className="input"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">Whose goal?</label>
-            <select className="input" value={personId} onChange={(e) => setPersonId(e.target.value === '' ? '' : Number(e.target.value))}>
+            <select
+              className="input"
+              value={personId}
+              onChange={(e) => setPersonId(e.target.value === '' ? '' : Number(e.target.value))}
+            >
               <option value="">Joint</option>
               {people.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -221,10 +255,15 @@ function GoalModal({
           </div>
         </div>
         <div>
-          <label className="label">Linked accounts (their combined balance is the goal&apos;s progress)</label>
+          <label className="label">
+            Linked accounts (their combined balance is the goal&apos;s progress)
+          </label>
           <div className="max-h-44 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2 dark:border-slate-600">
             {sorted.map((a) => (
-              <label key={a.id} className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/40">
+              <label
+                key={a.id}
+                className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/40"
+              >
                 <input
                   type="checkbox"
                   checked={accountIds.has(a.id)}
@@ -238,7 +277,9 @@ function GoalModal({
                 <span className="flex-1">
                   {a.name} <span className="text-xs text-slate-400">({a.type})</span>
                 </span>
-                <span className="tabular-nums text-slate-500 dark:text-slate-400">{fmt(balances.get(a.id) ?? 0)}</span>
+                <span className="tabular-nums text-slate-500 dark:text-slate-400">
+                  {fmt(balances.get(a.id) ?? 0)}
+                </span>
               </label>
             ))}
           </div>

@@ -5,17 +5,26 @@ import { rowToRule } from './helpers'
 import { createTransaction } from './transactions'
 
 export function listRecurring(db: DB): RecurringRule[] {
-  return db.prepare('SELECT * FROM recurring_rules ORDER BY active DESC, next_due').all().map(rowToRule)
+  return db
+    .prepare('SELECT * FROM recurring_rules ORDER BY active DESC, next_due')
+    .all()
+    .map(rowToRule)
 }
 
 function validate(db: DB, input: RecurringRuleInput): void {
   if (!input.name.trim()) throw new Error('Name is required')
   if (!Number.isFinite(input.amountCents)) throw new Error('Invalid amount')
   if (!isValidISO(input.nextDue)) throw new Error('Invalid next due date')
-  if (input.endDate != null && input.endDate !== '' && !isValidISO(input.endDate)) throw new Error('Invalid end date')
-  if (!db.prepare('SELECT id FROM accounts WHERE id = ?').get(input.accountId)) throw new Error('Account not found')
-  if (!db.prepare('SELECT id FROM people WHERE id = ?').get(input.personId)) throw new Error('Person not found')
-  if (input.categoryId != null && !db.prepare('SELECT id FROM categories WHERE id = ?').get(input.categoryId)) {
+  if (input.endDate != null && input.endDate !== '' && !isValidISO(input.endDate))
+    throw new Error('Invalid end date')
+  if (!db.prepare('SELECT id FROM accounts WHERE id = ?').get(input.accountId))
+    throw new Error('Account not found')
+  if (!db.prepare('SELECT id FROM people WHERE id = ?').get(input.personId))
+    throw new Error('Person not found')
+  if (
+    input.categoryId != null &&
+    !db.prepare('SELECT id FROM categories WHERE id = ?').get(input.categoryId)
+  ) {
     throw new Error('Category not found')
   }
 }
@@ -42,7 +51,11 @@ export function createRecurring(db: DB, input: RecurringRuleInput): RecurringRul
   return listRecurring(db)
 }
 
-export function updateRecurring(db: DB, id: number, patch: Partial<RecurringRuleInput>): RecurringRule[] {
+export function updateRecurring(
+  db: DB,
+  id: number,
+  patch: Partial<RecurringRuleInput>
+): RecurringRule[] {
   const row = db.prepare('SELECT * FROM recurring_rules WHERE id = ?').get(id)
   if (!row) throw new Error('Recurring rule not found')
   const current = rowToRule(row)
@@ -84,7 +97,9 @@ export function deleteRecurring(db: DB, id: number, deleteInstances: boolean): R
     if (deleteInstances) {
       db.prepare('DELETE FROM transactions WHERE recurring_rule_id = ?').run(id)
     } else {
-      db.prepare('UPDATE transactions SET recurring_rule_id = NULL WHERE recurring_rule_id = ?').run(id)
+      db.prepare(
+        'UPDATE transactions SET recurring_rule_id = NULL WHERE recurring_rule_id = ?'
+      ).run(id)
     }
     db.prepare('DELETE FROM recurring_rules WHERE id = ?').run(id)
   })()
@@ -133,7 +148,11 @@ export function generateDueInstances(db: DB): number {
 }
 
 /** Expand upcoming instances for the next `days` days (not yet generated). */
-export function upcomingInstances(db: DB, days: number, personId: number | null): UpcomingInstance[] {
+export function upcomingInstances(
+  db: DB,
+  days: number,
+  personId: number | null
+): UpcomingInstance[] {
   const today = todayISO()
   const horizon = addDaysISO(today, days)
   const out: UpcomingInstance[] = []

@@ -94,7 +94,9 @@ export default function RecurringTab(): React.JSX.Element {
                   </td>
                   <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-slate-500 dark:text-slate-400">
                     {formatDateDisplay(r.nextDue)}
-                    {r.endDate && <span className="block text-xs">until {formatDateDisplay(r.endDate)}</span>}
+                    {r.endDate && (
+                      <span className="block text-xs">until {formatDateDisplay(r.endDate)}</span>
+                    )}
                   </td>
                   <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
                     {(() => {
@@ -102,13 +104,18 @@ export default function RecurringTab(): React.JSX.Element {
                       return c ? `${c.icon} ${c.name}` : '—'
                     })()}
                   </td>
-                  <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">{accountById(r.accountId)?.name}</td>
+                  <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
+                    {accountById(r.accountId)?.name}
+                  </td>
                   <td className="px-4 py-2.5">
                     {(() => {
                       const p = personById(r.personId)
                       return p ? (
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: p.color }} />
+                          <span
+                            className="h-2 w-2 rounded-full"
+                            style={{ backgroundColor: p.color }}
+                          />
                           {p.name}
                         </span>
                       ) : null
@@ -162,9 +169,13 @@ function RuleModal({
 
   const [name, setName] = useState(rule?.name ?? '')
   const [amount, setAmount] = useState(rule ? (Math.abs(rule.amountCents) / 100).toFixed(2) : '')
-  const [kind, setKind] = useState<'expense' | 'income'>(rule && rule.amountCents > 0 ? 'income' : 'expense')
+  const [kind, setKind] = useState<'expense' | 'income'>(
+    rule && rule.amountCents > 0 ? 'income' : 'expense'
+  )
   const [categoryId, setCategoryId] = useState<number | ''>(rule?.categoryId ?? '')
-  const [accountId, setAccountId] = useState<number | ''>(rule?.accountId ?? activeAccounts[0]?.id ?? '')
+  const [accountId, setAccountId] = useState<number | ''>(
+    rule?.accountId ?? activeAccounts[0]?.id ?? ''
+  )
   const [personId, setPersonId] = useState<number>(rule?.personId ?? people[0]?.id ?? 1)
   const [frequency, setFrequency] = useState<Frequency>(rule?.frequency ?? 'monthly')
   const [nextDue, setNextDue] = useState(rule?.nextDue ?? todayISO())
@@ -197,7 +208,9 @@ function RuleModal({
         endDate: endDate || null,
         active
       }
-      const updated = rule ? await api.updateRecurring(rule.id, payload) : await api.createRecurring(payload)
+      const updated = rule
+        ? await api.updateRecurring(rule.id, payload)
+        : await api.createRecurring(payload)
       toast(rule ? 'Rule updated' : 'Rule created — due instances were generated', 'success')
       await onSaved(updated)
     } catch (err) {
@@ -211,23 +224,44 @@ function RuleModal({
       <form className="space-y-4" onSubmit={submit}>
         <div>
           <label className="label">Name / payee</label>
-          <input className="input" required autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Rent" />
+          <input
+            className="input"
+            required
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Rent"
+          />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="label">Type</label>
-            <select className="input" value={kind} onChange={(e) => setKind(e.target.value as 'expense' | 'income')}>
+            <select
+              className="input"
+              value={kind}
+              onChange={(e) => setKind(e.target.value as 'expense' | 'income')}
+            >
               <option value="expense">Expense</option>
               <option value="income">Income</option>
             </select>
           </div>
           <div>
             <label className="label">Amount ({settings.currencySymbol})</label>
-            <input className="input text-right" required inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <input
+              className="input text-right"
+              required
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">Frequency</label>
-            <select className="input" value={frequency} onChange={(e) => setFrequency(e.target.value as Frequency)}>
+            <select
+              className="input"
+              value={frequency}
+              onChange={(e) => setFrequency(e.target.value as Frequency)}
+            >
               {FREQUENCIES.map((f) => (
                 <option key={f.value} value={f.value}>
                   {f.label}
@@ -239,11 +273,22 @@ function RuleModal({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label">Next due</label>
-            <input type="date" className="input" required value={nextDue} onChange={(e) => setNextDue(e.target.value)} />
+            <input
+              type="date"
+              className="input"
+              required
+              value={nextDue}
+              onChange={(e) => setNextDue(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">End date (optional)</label>
-            <input type="date" className="input" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            <input
+              type="date"
+              className="input"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">Category</label>
@@ -264,7 +309,11 @@ function RuleModal({
           </div>
           <div>
             <label className="label">Account</label>
-            <select className="input" value={accountId} onChange={(e) => setAccountId(Number(e.target.value))}>
+            <select
+              className="input"
+              value={accountId}
+              onChange={(e) => setAccountId(Number(e.target.value))}
+            >
               {activeAccounts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
@@ -274,7 +323,11 @@ function RuleModal({
           </div>
           <div>
             <label className="label">Person</label>
-            <select className="input" value={personId} onChange={(e) => setPersonId(Number(e.target.value))}>
+            <select
+              className="input"
+              value={personId}
+              onChange={(e) => setPersonId(Number(e.target.value))}
+            >
               {people.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -284,13 +337,18 @@ function RuleModal({
           </div>
           <div className="flex items-end pb-2">
             <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+              <input
+                type="checkbox"
+                checked={active}
+                onChange={(e) => setActive(e.target.checked)}
+              />
               Active
             </label>
           </div>
         </div>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          If the next due date is in the past, all missed instances up to today are generated immediately.
+          If the next due date is in the past, all missed instances up to today are generated
+          immediately.
         </p>
         <div className="flex justify-end gap-2">
           <Button type="button" onClick={onClose}>

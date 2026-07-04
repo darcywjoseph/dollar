@@ -38,8 +38,18 @@ export default function Transactions(): React.JSX.Element {
 // ---------------------------------------------------------------------------
 
 function TransactionsTab(): React.JSX.Element {
-  const { personFilter, toast, confirm, fmt, refresh, categoryById, accountById, personById, categories, accounts } =
-    useApp()
+  const {
+    personFilter,
+    toast,
+    confirm,
+    fmt,
+    refresh,
+    categoryById,
+    accountById,
+    personById,
+    categories,
+    accounts
+  } = useApp()
   const [rows, setRows] = useState<Transaction[]>([])
   const [total, setTotal] = useState(0)
   const [sumCents, setSumCents] = useState(0)
@@ -77,7 +87,17 @@ function TransactionsTab(): React.JSX.Element {
       sortDir,
       limit
     }),
-    [personFilter, accountId, categoryId, dateFrom, dateTo, debouncedSearch, sortField, sortDir, limit]
+    [
+      personFilter,
+      accountId,
+      categoryId,
+      dateFrom,
+      dateTo,
+      debouncedSearch,
+      sortField,
+      sortDir,
+      limit
+    ]
   )
 
   const load = useCallback(async () => {
@@ -100,7 +120,10 @@ function TransactionsTab(): React.JSX.Element {
   }, [load])
 
   const loadSuggestions = useCallback(() => {
-    api.getPayeeSuggestions().then(setSuggestions).catch(() => undefined)
+    api
+      .getPayeeSuggestions()
+      .then(setSuggestions)
+      .catch(() => undefined)
   }, [])
   useEffect(() => {
     loadSuggestions()
@@ -169,7 +192,8 @@ function TransactionsTab(): React.JSX.Element {
     }
   }
 
-  const sortIcon = (field: string): string => (sortField !== field ? '' : sortDir === 'asc' ? ' ↑' : ' ↓')
+  const sortIcon = (field: string): string =>
+    sortField !== field ? '' : sortDir === 'asc' ? ' ↑' : ' ↓'
   const activeCategories = categories.filter((c) => !c.archived)
   const activeAccounts = accounts.filter((a) => !a.archived)
 
@@ -181,11 +205,20 @@ function TransactionsTab(): React.JSX.Element {
       <div className="card flex flex-wrap items-end gap-3 p-4">
         <div className="min-w-44 flex-1">
           <label className="label">Search</label>
-          <input className="input" placeholder="Payee, notes, tags…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input
+            className="input"
+            placeholder="Payee, notes, tags…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
         <div>
           <label className="label">Account</label>
-          <select className="input w-40" value={accountId} onChange={(e) => setAccountId(e.target.value === '' ? '' : Number(e.target.value))}>
+          <select
+            className="input w-40"
+            value={accountId}
+            onChange={(e) => setAccountId(e.target.value === '' ? '' : Number(e.target.value))}
+          >
             <option value="">All accounts</option>
             {activeAccounts.map((a) => (
               <option key={a.id} value={a.id}>
@@ -196,7 +229,11 @@ function TransactionsTab(): React.JSX.Element {
         </div>
         <div>
           <label className="label">Category</label>
-          <select className="input w-40" value={categoryId} onChange={(e) => setCategoryId(e.target.value === '' ? '' : Number(e.target.value))}>
+          <select
+            className="input w-40"
+            value={categoryId}
+            onChange={(e) => setCategoryId(e.target.value === '' ? '' : Number(e.target.value))}
+          >
             <option value="">All categories</option>
             <option value={-1}>Uncategorized</option>
             {activeCategories.map((c) => (
@@ -208,11 +245,21 @@ function TransactionsTab(): React.JSX.Element {
         </div>
         <div>
           <label className="label">From</label>
-          <input type="date" className="input w-36" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          <input
+            type="date"
+            className="input w-36"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+          />
         </div>
         <div>
           <label className="label">To</label>
-          <input type="date" className="input w-36" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          <input
+            type="date"
+            className="input w-36"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+          />
         </div>
         <div className="ml-auto flex gap-2">
           <Button onClick={() => setShowImport(true)}>Import CSV</Button>
@@ -236,7 +283,12 @@ function TransactionsTab(): React.JSX.Element {
             icon="🗒️"
             title="No transactions found"
             message={
-              total === 0 && !debouncedSearch && !dateFrom && !dateTo && accountId === '' && categoryId === ''
+              total === 0 &&
+              !debouncedSearch &&
+              !dateFrom &&
+              !dateTo &&
+              accountId === '' &&
+              categoryId === ''
                 ? 'Add your first transaction above, or import a CSV from your bank.'
                 : 'Nothing matches the current filters. Try broadening them.'
             }
@@ -251,7 +303,9 @@ function TransactionsTab(): React.JSX.Element {
                       type="checkbox"
                       aria-label="Select all"
                       checked={selected.size === rows.length && rows.length > 0}
-                      onChange={(e) => setSelected(e.target.checked ? new Set(rows.map((r) => r.id)) : new Set())}
+                      onChange={(e) =>
+                        setSelected(e.target.checked ? new Set(rows.map((r) => r.id)) : new Set())
+                      }
                     />
                   </th>
                   <th className="cursor-pointer px-3 py-2.5" onClick={() => toggleSort('date')}>
@@ -263,7 +317,10 @@ function TransactionsTab(): React.JSX.Element {
                   <th className="px-3 py-2.5">Category</th>
                   <th className="px-3 py-2.5">Account</th>
                   <th className="px-3 py-2.5">Person</th>
-                  <th className="cursor-pointer px-3 py-2.5 text-right" onClick={() => toggleSort('amount_cents')}>
+                  <th
+                    className="cursor-pointer px-3 py-2.5 text-right"
+                    onClick={() => toggleSort('amount_cents')}
+                  >
                     Amount{sortIcon('amount_cents')}
                   </th>
                   <th className="w-16 px-3 py-2.5" />
@@ -306,7 +363,10 @@ function TransactionsTab(): React.JSX.Element {
                       <td className="max-w-64 truncate px-3 py-2 font-medium">
                         {t.payee || <span className="text-slate-400">—</span>}
                         {t.isRecurringInstance && (
-                          <span className="ml-1.5 text-xs text-slate-400" title="Generated from a recurring rule">
+                          <span
+                            className="ml-1.5 text-xs text-slate-400"
+                            title="Generated from a recurring rule"
+                          >
                             🔁
                           </span>
                         )}
@@ -314,7 +374,11 @@ function TransactionsTab(): React.JSX.Element {
                       <td className="whitespace-nowrap px-3 py-2 text-slate-600 dark:text-slate-300">
                         {(() => {
                           const c = categoryById(t.categoryId)
-                          return c ? `${c.icon} ${c.name}` : <span className="text-slate-400">Uncategorized</span>
+                          return c ? (
+                            `${c.icon} ${c.name}`
+                          ) : (
+                            <span className="text-slate-400">Uncategorized</span>
+                          )
                         })()}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2 text-slate-500 dark:text-slate-400">
@@ -325,7 +389,10 @@ function TransactionsTab(): React.JSX.Element {
                           const p = personById(t.personId)
                           return p ? (
                             <span className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: p.color }} />
+                              <span
+                                className="h-2 w-2 rounded-full"
+                                style={{ backgroundColor: p.color }}
+                              />
                               {p.name}
                             </span>
                           ) : (
@@ -352,7 +419,8 @@ function TransactionsTab(): React.JSX.Element {
             </table>
             <div className="flex items-center justify-between border-t border-slate-200 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
               <span>
-                {rows.length} of {total} shown · net <Money cents={sumCents} fmt={fmt} colored sign />
+                {rows.length} of {total} shown · net{' '}
+                <Money cents={sumCents} fmt={fmt} colored sign />
               </span>
               {rows.length < total && (
                 <Button variant="ghost" onClick={() => setLimit((l) => l + PAGE_SIZE)}>
@@ -396,7 +464,9 @@ function EntryForm({
   const [amount, setAmount] = useState('')
   const [categoryId, setCategoryId] = useState<number | ''>('')
   const [accountId, setAccountId] = useState<number | ''>(activeAccounts[0]?.id ?? '')
-  const [personId, setPersonId] = useState<number>(viewMode === 'combined' ? (people[0]?.id ?? 1) : viewMode)
+  const [personId, setPersonId] = useState<number>(
+    viewMode === 'combined' ? (people[0]?.id ?? 1) : viewMode
+  )
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [showSuggest, setShowSuggest] = useState(false)
@@ -410,7 +480,9 @@ function EntryForm({
   const matches = useMemo(() => {
     const q = payee.trim().toLowerCase()
     if (!q) return []
-    return suggestions.filter((s) => s.payee.toLowerCase().includes(q) && s.payee.toLowerCase() !== q).slice(0, 6)
+    return suggestions
+      .filter((s) => s.payee.toLowerCase().includes(q) && s.payee.toLowerCase() !== q)
+      .slice(0, 6)
   }, [payee, suggestions])
 
   const applySuggestion = (s: PayeeSuggestion): void => {
@@ -479,7 +551,14 @@ function EntryForm({
         <label className="label" htmlFor="entry-date">
           Date
         </label>
-        <input id="entry-date" type="date" required className="input w-36" value={date} onChange={(e) => setDate(e.target.value)} />
+        <input
+          id="entry-date"
+          type="date"
+          required
+          className="input w-36"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+        />
       </div>
       <div className="relative min-w-44 flex-1">
         <label className="label" htmlFor="entry-payee">
@@ -586,7 +665,12 @@ function EntryForm({
         <label className="label" htmlFor="entry-account">
           Account
         </label>
-        <select id="entry-account" className="input w-40" value={accountId} onChange={(e) => setAccountId(Number(e.target.value))}>
+        <select
+          id="entry-account"
+          className="input w-40"
+          value={accountId}
+          onChange={(e) => setAccountId(Number(e.target.value))}
+        >
           {activeAccounts.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}
@@ -598,7 +682,12 @@ function EntryForm({
         <label className="label" htmlFor="entry-person">
           Person
         </label>
-        <select id="entry-person" className="input w-32" value={personId} onChange={(e) => setPersonId(Number(e.target.value))}>
+        <select
+          id="entry-person"
+          className="input w-32"
+          value={personId}
+          onChange={(e) => setPersonId(Number(e.target.value))}
+        >
           {people.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -610,7 +699,13 @@ function EntryForm({
         <label className="label" htmlFor="entry-notes">
           Notes
         </label>
-        <input id="entry-notes" className="input" placeholder="optional" value={notes} onChange={(e) => setNotes(e.target.value)} />
+        <input
+          id="entry-notes"
+          className="input"
+          placeholder="optional"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+        />
       </div>
       <Button type="submit" variant="primary" disabled={saving}>
         {saving ? 'Saving…' : 'Add'}
@@ -679,7 +774,13 @@ function EditRow({
     >
       <td className="px-3 py-2" />
       <td className="px-2 py-1.5">
-        <input type="date" className="input h-8 w-36" value={date} onChange={(e) => setDate(e.target.value)} autoFocus />
+        <input
+          type="date"
+          className="input h-8 w-36"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          autoFocus
+        />
       </td>
       <td className="px-2 py-1.5">
         <input className="input h-8" value={payee} onChange={(e) => setPayee(e.target.value)} />
@@ -701,7 +802,11 @@ function EditRow({
         </select>
       </td>
       <td className="px-2 py-1.5">
-        <select className="input h-8" value={accountId} onChange={(e) => setAccountId(Number(e.target.value))}>
+        <select
+          className="input h-8"
+          value={accountId}
+          onChange={(e) => setAccountId(Number(e.target.value))}
+        >
           {accounts
             .filter((a) => !a.archived || a.id === tx.accountId)
             .map((a) => (
@@ -712,7 +817,11 @@ function EditRow({
         </select>
       </td>
       <td className="px-2 py-1.5">
-        <select className="input h-8" value={personId} onChange={(e) => setPersonId(Number(e.target.value))}>
+        <select
+          className="input h-8"
+          value={personId}
+          onChange={(e) => setPersonId(Number(e.target.value))}
+        >
           {people.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}
@@ -730,10 +839,17 @@ function EditRow({
         />
       </td>
       <td className="whitespace-nowrap px-2 py-1.5 text-right">
-        <button className="mr-1 rounded px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-100 dark:text-indigo-300 dark:hover:bg-slate-600" onClick={save} disabled={saving}>
+        <button
+          className="mr-1 rounded px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-100 dark:text-indigo-300 dark:hover:bg-slate-600"
+          onClick={save}
+          disabled={saving}
+        >
           Save
         </button>
-        <button className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600" onClick={onCancel}>
+        <button
+          className="rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-600"
+          onClick={onCancel}
+        >
           Cancel
         </button>
       </td>

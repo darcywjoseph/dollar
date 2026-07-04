@@ -21,7 +21,6 @@ import {
 import { getSettings, monthKeySql } from './helpers'
 import { expandRecurringFlows, upcomingInstances } from './recurring'
 
-
 // Dashboard
 
 export function getDashboard(db: DB, month: string, personId: number | null): DashboardSummary {
@@ -54,7 +53,9 @@ export function getDashboard(db: DB, month: string, personId: number | null): Da
   const budgetCond = personId != null ? 'WHERE month = ? AND person_id = ?' : 'WHERE month = ?'
   const budgetParams = personId != null ? [month, personId] : [month]
   const budgetRows = db
-    .prepare(`SELECT category_id, SUM(amount_cents) AS budgeted FROM budgets ${budgetCond} GROUP BY category_id`)
+    .prepare(
+      `SELECT category_id, SUM(amount_cents) AS budgeted FROM budgets ${budgetCond} GROUP BY category_id`
+    )
     .all(...budgetParams) as { category_id: number; budgeted: number }[]
 
   const actualByCat = new Map(byCategory.map((c) => [c.categoryId, c.spentCents]))
@@ -143,15 +144,23 @@ export function getForecast(db: DB, windowMonths: number): ForecastData {
       a = { month: r.m, netByPerson: {}, incomeCents: 0, spendingCents: 0 }
       actualsByMonth.set(r.m, a)
     }
-    a.netByPerson[String(r.person_id)] = (a.netByPerson[String(r.person_id)] ?? 0) + r.income - r.spending
+    a.netByPerson[String(r.person_id)] =
+      (a.netByPerson[String(r.person_id)] ?? 0) + r.income - r.spending
     a.incomeCents += r.income
     a.spendingCents += r.spending
   }
-  const actuals = months.filter((m) => compareISO(m, nowMonth) < 0).map(
-    (m) => actualsByMonth.get(m) ?? { month: m, netByPerson: {}, incomeCents: 0, spendingCents: 0 }
-  )
-  const currentMonthActual =
-    actualsByMonth.get(nowMonth) ?? { month: nowMonth, netByPerson: {}, incomeCents: 0, spendingCents: 0 }
+  const actuals = months
+    .filter((m) => compareISO(m, nowMonth) < 0)
+    .map(
+      (m) =>
+        actualsByMonth.get(m) ?? { month: m, netByPerson: {}, incomeCents: 0, spendingCents: 0 }
+    )
+  const currentMonthActual = actualsByMonth.get(nowMonth) ?? {
+    month: nowMonth,
+    netByPerson: {},
+    incomeCents: 0,
+    spendingCents: 0
+  }
 
   // Trailing-average variable (non-recurring) flows per person+category.
   const winMonths = lastNMonthKeys(nowMonth, win)
@@ -174,8 +183,12 @@ export function getForecast(db: DB, windowMonths: number): ForecastData {
   // in the current month.
   const yearEnd = monthRange(months[11], firstDay).end
   const flows = expandRecurringFlows(db, today, yearEnd, (iso) => monthKeyOf(iso, firstDay))
-  const recurringFlows: RecurringMonthFlow[] = flows.filter((f) => compareISO(f.month, nowMonth) > 0)
-  const currentMonthRemainingRecurring: RecurringMonthFlow[] = flows.filter((f) => f.month === nowMonth)
+  const recurringFlows: RecurringMonthFlow[] = flows.filter(
+    (f) => compareISO(f.month, nowMonth) > 0
+  )
+  const currentMonthRemainingRecurring: RecurringMonthFlow[] = flows.filter(
+    (f) => f.month === nowMonth
+  )
 
   // Elapsed fraction of the current budget month.
   const msPerDay = 86400000
@@ -195,7 +208,8 @@ export function getForecast(db: DB, windowMonths: number): ForecastData {
     )
     .all() as { person_id: number | null; balance: number }[]
   const balancesByOwner: Record<string, number> = {}
-  for (const r of balRows) balancesByOwner[r.person_id == null ? 'joint' : String(r.person_id)] = r.balance
+  for (const r of balRows)
+    balancesByOwner[r.person_id == null ? 'joint' : String(r.person_id)] = r.balance
 
   return {
     year,
@@ -250,7 +264,11 @@ export function getYearReport(db: DB, year: number, personId: number | null): Ye
          FROM transactions WHERE amount_cents < 0 AND date >= ? AND date < ? ${personCond}
          GROUP BY m, category_id`
       )
-      .all(start, end, ...personParams) as { m: string; category_id: number | null; spent: number }[]
+      .all(start, end, ...personParams) as {
+      m: string
+      category_id: number | null
+      spent: number
+    }[]
   ).map((r) => ({ month: r.m, categoryId: r.category_id, spentCents: r.spent }))
 
   const personByMonth = (
@@ -263,7 +281,12 @@ export function getYearReport(db: DB, year: number, personId: number | null): Ye
          GROUP BY m, person_id`
       )
       .all(start, end) as { m: string; person_id: number; income: number; spending: number }[]
-  ).map((r) => ({ month: r.m, personId: r.person_id, incomeCents: r.income, spendingCents: r.spending }))
+  ).map((r) => ({
+    month: r.m,
+    personId: r.person_id,
+    incomeCents: r.income,
+    spendingCents: r.spending
+  }))
 
   return { year, byMonth, categoryByMonth, personByMonth }
 }

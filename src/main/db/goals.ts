@@ -55,12 +55,14 @@ export function listGoals(db: DB): GoalProgress[] {
 
 function validate(db: DB, input: GoalInput): void {
   if (!input.name.trim()) throw new Error('Goal name is required')
-  if (!Number.isFinite(input.targetCents) || input.targetCents <= 0) throw new Error('Target must be positive')
+  if (!Number.isFinite(input.targetCents) || input.targetCents <= 0)
+    throw new Error('Target must be positive')
   if (input.targetDate != null && input.targetDate !== '' && !isValidISO(input.targetDate)) {
     throw new Error('Invalid target date')
   }
   for (const id of input.accountIds) {
-    if (!db.prepare('SELECT id FROM accounts WHERE id = ?').get(id)) throw new Error('Linked account not found')
+    if (!db.prepare('SELECT id FROM accounts WHERE id = ?').get(id))
+      throw new Error('Linked account not found')
   }
 }
 

@@ -2,13 +2,7 @@ import React from 'react'
 import { useApp } from '../store'
 
 export type Page =
-  | 'dashboard'
-  | 'transactions'
-  | 'budgets'
-  | 'goals'
-  | 'forecast'
-  | 'reports'
-  | 'settings'
+  'dashboard' | 'transactions' | 'budgets' | 'goals' | 'forecast' | 'reports' | 'settings'
 
 const NAV: { id: Page; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '◧' },

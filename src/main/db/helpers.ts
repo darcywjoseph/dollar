@@ -32,7 +32,14 @@ export function rowToAccount(r: any): Account {
 }
 
 export function rowToCategory(r: any): Category {
-  return { id: r.id, name: r.name, type: r.type, icon: r.icon, color: r.color, archived: !!r.archived }
+  return {
+    id: r.id,
+    name: r.name,
+    type: r.type,
+    icon: r.icon,
+    color: r.color,
+    archived: !!r.archived
+  }
 }
 
 export function rowToTransaction(r: any): Transaction {
@@ -70,7 +77,13 @@ export function rowToRule(r: any): RecurringRule {
 }
 
 export function rowToBudget(r: any): Budget {
-  return { id: r.id, month: r.month, categoryId: r.category_id, personId: r.person_id, amountCents: r.amount_cents }
+  return {
+    id: r.id,
+    month: r.month,
+    categoryId: r.category_id,
+    personId: r.person_id,
+    amountCents: r.amount_cents
+  }
 }
 
 export function rowToGoal(r: any): SavingsGoal {
@@ -95,7 +108,10 @@ export function rowToGoal(r: any): SavingsGoal {
 // Settings
 
 export function getSettingsMap(db: DB): Record<string, string> {
-  const rows = db.prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[]
+  const rows = db.prepare('SELECT key, value FROM settings').all() as {
+    key: string
+    value: string
+  }[]
   return Object.fromEntries(rows.map((r) => [r.key, r.value]))
 }
 
@@ -114,10 +130,9 @@ export function getSettings(db: DB): AppSettings {
 }
 
 export function setSetting(db: DB, key: string, value: string): void {
-  db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(
-    key,
-    value
-  )
+  db.prepare(
+    'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
+  ).run(key, value)
 }
 
 export function baseImportHash(date: string, amountCents: number, payee: string): string {
@@ -128,7 +143,9 @@ export function baseImportHash(date: string, amountCents: number, payee: string)
 /** Count of existing transactions whose hash derives from this base. */
 export function existingHashCount(db: DB, base: string): number {
   const row = db
-    .prepare("SELECT COUNT(*) AS n FROM transactions WHERE import_hash = ? OR import_hash LIKE ? || ':%'")
+    .prepare(
+      "SELECT COUNT(*) AS n FROM transactions WHERE import_hash = ? OR import_hash LIKE ? || ':%'"
+    )
     .get(base, base) as { n: number }
   return row.n
 }
@@ -140,5 +157,7 @@ export function hashWithOccurrence(base: string, occurrence: number): string {
 /** SQL expression mapping a tx date to its budget-month key for firstDay. */
 export function monthKeySql(firstDay: number, column = 'date'): string {
   const shift = firstDay - 1
-  return shift === 0 ? `substr(${column}, 1, 7)` : `strftime('%Y-%m', date(${column}, '-${shift} days'))`
+  return shift === 0
+    ? `substr(${column}, 1, 7)`
+    : `strftime('%Y-%m', date(${column}, '-${shift} days'))`
 }

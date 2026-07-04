@@ -46,7 +46,10 @@ export function compareISO(a: string, b: string): number {
 }
 
 /** Advance a recurring rule's due date one period. */
-export function advanceDate(iso: string, frequency: 'weekly' | 'biweekly' | 'monthly' | 'yearly'): string {
+export function advanceDate(
+  iso: string,
+  frequency: 'weekly' | 'biweekly' | 'monthly' | 'yearly'
+): string {
   switch (frequency) {
     case 'weekly':
       return addDaysISO(iso, 7)

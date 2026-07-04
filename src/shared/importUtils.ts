@@ -3,8 +3,19 @@ import { isValidISO, toISO } from './dates'
 export type DateConvention = 'auto' | 'mdy' | 'dmy'
 
 const MONTH_NAMES: Record<string, number> = {
-  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
-  jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, nov: 11, dec: 12
+  jan: 1,
+  feb: 2,
+  mar: 3,
+  apr: 4,
+  may: 5,
+  jun: 6,
+  jul: 7,
+  aug: 8,
+  sep: 9,
+  sept: 9,
+  oct: 10,
+  nov: 11,
+  dec: 12
 }
 
 /**
@@ -25,7 +36,8 @@ export function parseDateFlexible(raw: string, convention: DateConvention = 'aut
   // Textual month
   m = s.match(/^([A-Za-z]{3,9})[ .\-/]+(\d{1,2})(?:st|nd|rd|th)?[,]?[ .\-/]+(\d{2,4})$/)
   if (m) {
-    const mon = MONTH_NAMES[m[1].slice(0, 4).toLowerCase()] ?? MONTH_NAMES[m[1].slice(0, 3).toLowerCase()]
+    const mon =
+      MONTH_NAMES[m[1].slice(0, 4).toLowerCase()] ?? MONTH_NAMES[m[1].slice(0, 3).toLowerCase()]
     if (mon) {
       const iso = toISO(expandYear(Number(m[3])), mon, Number(m[2]))
       return isValidISO(iso) ? iso : null
@@ -33,7 +45,8 @@ export function parseDateFlexible(raw: string, convention: DateConvention = 'aut
   }
   m = s.match(/^(\d{1,2})(?:st|nd|rd|th)?[ .\-/]+([A-Za-z]{3,9})[,]?[ .\-/]+(\d{2,4})$/)
   if (m) {
-    const mon = MONTH_NAMES[m[2].slice(0, 4).toLowerCase()] ?? MONTH_NAMES[m[2].slice(0, 3).toLowerCase()]
+    const mon =
+      MONTH_NAMES[m[2].slice(0, 4).toLowerCase()] ?? MONTH_NAMES[m[2].slice(0, 3).toLowerCase()]
     if (mon) {
       const iso = toISO(expandYear(Number(m[3])), mon, Number(m[1]))
       return isValidISO(iso) ? iso : null
@@ -76,11 +89,23 @@ function expandYear(y: number): number {
 }
 
 /** Guess which mapped column index matches a purpose from CSV header names. */
-export function guessColumn(headers: string[], purpose: 'date' | 'amount' | 'description' | 'category' | 'account'): number {
+export function guessColumn(
+  headers: string[],
+  purpose: 'date' | 'amount' | 'description' | 'category' | 'account'
+): number {
   const patterns: Record<string, RegExp[]> = {
     date: [/^date$/i, /date/i, /posted/i, /^when$/i],
     amount: [/^amount$/i, /amount/i, /^value$/i, /debit/i, /total/i, /^sum$/i],
-    description: [/^description$/i, /desc/i, /payee/i, /merchant/i, /memo/i, /narrative/i, /details/i, /^name$/i],
+    description: [
+      /^description$/i,
+      /desc/i,
+      /payee/i,
+      /merchant/i,
+      /memo/i,
+      /narrative/i,
+      /details/i,
+      /^name$/i
+    ],
     category: [/^category$/i, /categor/i],
     account: [/^account$/i, /account/i]
   }

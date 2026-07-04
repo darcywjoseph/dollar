@@ -19,7 +19,13 @@ import * as analytics from './db/analytics'
 import * as backup from './db/backup'
 import { getSettings, setSetting } from './db/helpers'
 
-const SETTING_KEYS = new Set(['currencySymbol', 'firstDayOfMonth', 'theme', 'viewMode', 'forecastWindow'])
+const SETTING_KEYS = new Set([
+  'currencySymbol',
+  'firstDayOfMonth',
+  'theme',
+  'viewMode',
+  'forecastWindow'
+])
 
 type IpcResponse = { ok: true; data: unknown } | { ok: false; error: string }
 
@@ -44,7 +50,9 @@ export function registerIpcHandlers(db: DB, getWindow: () => BrowserWindow | nul
     balances: core.accountBalances(db)
   }))
 
-  handle('updatePerson', (id: number, patch: { name?: string; color?: string }) => core.updatePerson(db, id, patch))
+  handle('updatePerson', (id: number, patch: { name?: string; color?: string }) =>
+    core.updatePerson(db, id, patch)
+  )
 
   handle('listAccounts', () => core.listAccounts(db))
   handle('createAccount', (input: AccountInput) => core.createAccount(db, input))
@@ -62,15 +70,21 @@ export function registerIpcHandlers(db: DB, getWindow: () => BrowserWindow | nul
 
   handle('listTransactions', (filter: TransactionFilter) => tx.listTransactions(db, filter ?? {}))
   handle('createTransaction', (input: TransactionInput) => tx.createTransaction(db, input))
-  handle('updateTransaction', (id: number, patch: Partial<TransactionInput>) => tx.updateTransaction(db, id, patch))
+  handle('updateTransaction', (id: number, patch: Partial<TransactionInput>) =>
+    tx.updateTransaction(db, id, patch)
+  )
   handle('deleteTransactions', (ids: number[]) => tx.deleteTransactions(db, ids))
   handle('getPayeeSuggestions', () => tx.getPayeeSuggestions(db))
   handle('importTransactions', (req: ImportRequest) => tx.importTransactions(db, req))
 
   handle('listRecurring', () => recurring.listRecurring(db))
   handle('createRecurring', (input: RecurringRuleInput) => recurring.createRecurring(db, input))
-  handle('updateRecurring', (id: number, patch: Partial<RecurringRuleInput>) => recurring.updateRecurring(db, id, patch))
-  handle('deleteRecurring', (id: number, deleteInstances: boolean) => recurring.deleteRecurring(db, id, deleteInstances))
+  handle('updateRecurring', (id: number, patch: Partial<RecurringRuleInput>) =>
+    recurring.updateRecurring(db, id, patch)
+  )
+  handle('deleteRecurring', (id: number, deleteInstances: boolean) =>
+    recurring.deleteRecurring(db, id, deleteInstances)
+  )
 
   handle('getBudgetGrid', (month: string) => budgets.getBudgetGrid(db, month))
   handle('setBudget', (month: string, categoryId: number, scope: string, amountCents: number) =>
@@ -84,9 +98,13 @@ export function registerIpcHandlers(db: DB, getWindow: () => BrowserWindow | nul
   handle('updateGoal', (id: number, patch: Partial<GoalInput>) => goals.updateGoal(db, id, patch))
   handle('deleteGoal', (id: number) => goals.deleteGoal(db, id))
 
-  handle('getDashboard', (month: string, personId: number | null) => analytics.getDashboard(db, month, personId))
+  handle('getDashboard', (month: string, personId: number | null) =>
+    analytics.getDashboard(db, month, personId)
+  )
   handle('getForecast', (windowMonths: number) => analytics.getForecast(db, windowMonths))
-  handle('getYearReport', (year: number, personId: number | null) => analytics.getYearReport(db, year, personId))
+  handle('getYearReport', (year: number, personId: number | null) =>
+    analytics.getYearReport(db, year, personId)
+  )
 
   handle('getSettings', () => getSettings(db))
   handle('setSetting', (key: string, value: string) => {

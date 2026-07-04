@@ -142,7 +142,9 @@ function migrate(db: DB): void {
 function seed(db: DB): void {
   const peopleCount = (db.prepare('SELECT COUNT(*) AS n FROM people').get() as { n: number }).n
   if (peopleCount === 0) {
-    const insertPerson = db.prepare('INSERT INTO people (id, name, color, sort) VALUES (?, ?, ?, ?)')
+    const insertPerson = db.prepare(
+      'INSERT INTO people (id, name, color, sort) VALUES (?, ?, ?, ?)'
+    )
     insertPerson.run(1, 'Me', '#6366f1', 0)
     insertPerson.run(2, 'Partner', '#f59e0b', 1)
 

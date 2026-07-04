@@ -106,7 +106,8 @@ export default function Forecast(): React.JSX.Element {
       m.set(f.personId, { income: f.incomeCents, spending: f.spendingCents })
     }
     const remRecCur = new Map<number, { income: number; spending: number }>()
-    for (const f of data.currentMonthRemainingRecurring) remRecCur.set(f.personId, { income: f.incomeCents, spending: f.spendingCents })
+    for (const f of data.currentMonthRemainingRecurring)
+      remRecCur.set(f.personId, { income: f.incomeCents, spending: f.spendingCents })
 
     const remainFrac = 1 - data.currentMonthElapsed
 
@@ -123,7 +124,14 @@ export default function Forecast(): React.JSX.Element {
     for (const a of data.actuals) {
       const byP = new Map<number, number>()
       for (const pid of personIds) byP.set(pid, a.netByPerson[String(pid)] ?? 0)
-      rows.push({ month: a.month, kind: 'past', incomeCents: a.incomeCents, spendingCents: a.spendingCents, netCents: a.incomeCents - a.spendingCents, netByPerson: byP })
+      rows.push({
+        month: a.month,
+        kind: 'past',
+        incomeCents: a.incomeCents,
+        spendingCents: a.spendingCents,
+        netCents: a.incomeCents - a.spendingCents,
+        netByPerson: byP
+      })
     }
 
     // current month: actual so far + recurring still due + prorated variable
@@ -162,7 +170,14 @@ export default function Forecast(): React.JSX.Element {
         income += rec.income + varAgg.income
         spending += rec.spending + varAgg.spending
       }
-      rows.push({ month: m, kind: 'future', incomeCents: income, spendingCents: spending, netCents: [...byP.values()].reduce((s, v) => s + v, 0), netByPerson: byP })
+      rows.push({
+        month: m,
+        kind: 'future',
+        incomeCents: income,
+        spendingCents: spending,
+        netCents: [...byP.values()].reduce((s, v) => s + v, 0),
+        netByPerson: byP
+      })
     }
 
     // balances
@@ -241,9 +256,13 @@ export default function Forecast(): React.JSX.Element {
   if (loading && !data) return <Spinner />
   if (!data || !projection || !adjusted) return <></>
 
-  const hasHistory = data.variableAverages.length > 0 || data.actuals.some((a) => a.incomeCents > 0 || a.spendingCents > 0)
+  const hasHistory =
+    data.variableAverages.length > 0 ||
+    data.actuals.some((a) => a.incomeCents > 0 || a.spendingCents > 0)
   const whatIfActive = overrides.size > 0 || hypotheticals.length > 0
-  const remainingNet = projection.rows.filter((r) => r.kind !== 'past').reduce((s, r) => s + r.netCents, 0)
+  const remainingNet = projection.rows
+    .filter((r) => r.kind !== 'past')
+    .reduce((s, r) => s + r.netCents, 0)
 
   return (
     <div className="space-y-5">
@@ -251,7 +270,8 @@ export default function Forecast(): React.JSX.Element {
         <div>
           <h2 className="text-lg font-semibold">Year forecast — {data.year}</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            Known recurring items plus variable spending estimated from your trailing {windowMonths}-month average.
+            Known recurring items plus variable spending estimated from your trailing {windowMonths}
+            -month average.
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm">
@@ -259,7 +279,9 @@ export default function Forecast(): React.JSX.Element {
           {[3, 6].map((w) => (
             <button
               key={w}
-              onClick={() => updateSetting('forecastWindow', String(w)).catch((e) => toast(e.message, 'error'))}
+              onClick={() =>
+                updateSetting('forecastWindow', String(w)).catch((e) => toast(e.message, 'error'))
+              }
               className={`rounded-lg px-3 py-1.5 font-medium transition ${
                 windowMonths === w
                   ? 'bg-indigo-600 text-white'
@@ -284,7 +306,11 @@ export default function Forecast(): React.JSX.Element {
         <>
           {/* summary cards */}
           <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-            <EoyCard label="Projected EOY balance — combined" value={fmt(projection.eoyCombined)} note="includes joint accounts" />
+            <EoyCard
+              label="Projected EOY balance — combined"
+              value={fmt(projection.eoyCombined)}
+              note="includes joint accounts"
+            />
             {people.map((p) => (
               <EoyCard
                 key={p.id}
@@ -303,7 +329,11 @@ export default function Forecast(): React.JSX.Element {
 
           <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
             <Card title="Balance through December" className="xl:col-span-2">
-              <ForecastChart points={connectedPoints} symbol={settings.currencySymbol} dark={isDark} />
+              <ForecastChart
+                points={connectedPoints}
+                symbol={settings.currencySymbol}
+                dark={isDark}
+              />
               {whatIfActive && (
                 <p className="mt-2 text-xs text-indigo-500 dark:text-indigo-300">
                   What-if adjustments are applied to the dashed projection.
@@ -329,7 +359,8 @@ export default function Forecast(): React.JSX.Element {
               }
             >
               <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
-                Adjust a category&apos;s monthly amount or add a hypothetical recurring item — the forecast updates live.
+                Adjust a category&apos;s monthly amount or add a hypothetical recurring item — the
+                forecast updates live.
               </p>
               <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                 {whatIfCategories.slice(0, 14).map(({ key, category, baseCents }) => (
@@ -351,15 +382,19 @@ export default function Forecast(): React.JSX.Element {
                   <p className="text-sm text-slate-400">No variable spending history yet.</p>
                 )}
               </div>
-              <HypotheticalForm
-                onAdd={(h) => setHypotheticals((hs) => [...hs, h])}
-              />
+              <HypotheticalForm onAdd={(h) => setHypotheticals((hs) => [...hs, h])} />
               {hypotheticals.length > 0 && (
                 <ul className="mt-3 space-y-1.5">
                   {hypotheticals.map((h) => (
-                    <li key={h.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5 text-sm dark:bg-slate-700/50">
+                    <li
+                      key={h.id}
+                      className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-1.5 text-sm dark:bg-slate-700/50"
+                    >
                       <span>
-                        {h.name} <span className="text-xs text-slate-400">({people.find((p) => p.id === h.personId)?.name}/mo)</span>
+                        {h.name}{' '}
+                        <span className="text-xs text-slate-400">
+                          ({people.find((p) => p.id === h.personId)?.name}/mo)
+                        </span>
                       </span>
                       <span className="flex items-center gap-2">
                         <Money cents={h.amountCents} fmt={fmt} colored sign />
@@ -390,7 +425,10 @@ export default function Forecast(): React.JSX.Element {
                   {people.map((p) => (
                     <th key={p.id} className="px-3 py-2 text-right">
                       <span className="inline-flex items-center gap-1.5">
-                        <span className="h-2 w-2 rounded-full" style={{ backgroundColor: p.color }} />
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{ backgroundColor: p.color }}
+                        />
                         {p.name} net
                       </span>
                     </th>
@@ -401,8 +439,13 @@ export default function Forecast(): React.JSX.Element {
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
                 {projection.rows.map((r) => (
-                  <tr key={r.month} className={r.kind === 'past' ? 'text-slate-400 dark:text-slate-500' : ''}>
-                    <td className="whitespace-nowrap px-3 py-2 font-medium">{formatMonthKey(r.month)}</td>
+                  <tr
+                    key={r.month}
+                    className={r.kind === 'past' ? 'text-slate-400 dark:text-slate-500' : ''}
+                  >
+                    <td className="whitespace-nowrap px-3 py-2 font-medium">
+                      {formatMonthKey(r.month)}
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums">{fmt(r.incomeCents)}</td>
                     <td className="px-3 py-2 text-right tabular-nums">{fmt(r.spendingCents)}</td>
                     <td className="px-3 py-2 text-right font-medium">
@@ -417,7 +460,13 @@ export default function Forecast(): React.JSX.Element {
                       {fmt(projection.endBal.get(r.month) ?? 0)}
                     </td>
                     <td className="px-3 py-2 text-xs">
-                      {r.kind === 'past' ? 'actual' : r.kind === 'current' ? <span className="text-indigo-500">partial + projected</span> : <span className="text-indigo-400">projected</span>}
+                      {r.kind === 'past' ? (
+                        'actual'
+                      ) : r.kind === 'current' ? (
+                        <span className="text-indigo-500">partial + projected</span>
+                      ) : (
+                        <span className="text-indigo-400">projected</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -446,12 +495,18 @@ function EoyCard({
   return (
     <div className="card p-5">
       <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
-        {dotColor && <span className="h-2 w-2 rounded-full" style={{ backgroundColor: dotColor }} />}
+        {dotColor && (
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: dotColor }} />
+        )}
         {label}
       </div>
       <div
         className={`mt-1 text-2xl font-semibold tabular-nums ${
-          tone === 'good' ? 'text-emerald-700 dark:text-emerald-400' : tone === 'bad' ? 'text-red-600 dark:text-red-400' : ''
+          tone === 'good'
+            ? 'text-emerald-700 dark:text-emerald-400'
+            : tone === 'bad'
+              ? 'text-red-600 dark:text-red-400'
+              : ''
         }`}
       >
         {value}
@@ -495,7 +550,9 @@ function WhatIfRow({
       <span className="min-w-0 flex-1 truncate">{label}</span>
       <span className="text-xs text-slate-400">{isSpend ? 'spend' : 'income'}/mo</span>
       <div className="relative">
-        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">{symbol}</span>
+        <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+          {symbol}
+        </span>
         <input
           className={`input h-8 w-24 pl-5 text-right ${overrideCents !== undefined ? 'border-indigo-400 ring-1 ring-indigo-300 dark:border-indigo-500' : ''}`}
           value={text}
@@ -508,7 +565,11 @@ function WhatIfRow({
         />
       </div>
       {overrideCents !== undefined && (
-        <button className="text-xs text-slate-400 hover:text-slate-600" onClick={() => onChange(null)} title="Reset to average">
+        <button
+          className="text-xs text-slate-400 hover:text-slate-600"
+          onClick={() => onChange(null)}
+          title="Reset to average"
+        >
           ↺
         </button>
       )}
@@ -541,7 +602,9 @@ function HypotheticalForm({ onAdd }: { onAdd: (h: Hypothetical) => void }): Reac
 
   return (
     <div className="mt-4 space-y-2 border-t border-slate-100 pt-3 dark:border-slate-700">
-      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">Add hypothetical monthly item</div>
+      <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
+        Add hypothetical monthly item
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <input
           className="input h-8 min-w-24 flex-1"
@@ -555,7 +618,11 @@ function HypotheticalForm({ onAdd }: { onAdd: (h: Hypothetical) => void }): Reac
             }
           }}
         />
-        <select className="input h-8 w-24" value={kind} onChange={(e) => setKind(e.target.value as 'expense' | 'income')}>
+        <select
+          className="input h-8 w-24"
+          value={kind}
+          onChange={(e) => setKind(e.target.value as 'expense' | 'income')}
+        >
           <option value="expense">Expense</option>
           <option value="income">Income</option>
         </select>
@@ -572,7 +639,11 @@ function HypotheticalForm({ onAdd }: { onAdd: (h: Hypothetical) => void }): Reac
             }
           }}
         />
-        <select className="input h-8 w-24" value={personId} onChange={(e) => setPersonId(Number(e.target.value))}>
+        <select
+          className="input h-8 w-24"
+          value={personId}
+          onChange={(e) => setPersonId(Number(e.target.value))}
+        >
           {people.map((p) => (
             <option key={p.id} value={p.id}>
               {p.name}

@@ -1,5 +1,12 @@
 import type { Database as DB } from 'better-sqlite3'
-import type { Account, AccountBalance, AccountInput, Category, CategoryInput, Person } from '@shared/types'
+import type {
+  Account,
+  AccountBalance,
+  AccountInput,
+  Category,
+  CategoryInput,
+  Person
+} from '@shared/types'
 import { rowToAccount, rowToCategory, rowToPerson } from './helpers'
 
 // ------------------------------- People -----------------------------------
@@ -8,7 +15,11 @@ export function listPeople(db: DB): Person[] {
   return db.prepare('SELECT * FROM people ORDER BY sort, id').all().map(rowToPerson)
 }
 
-export function updatePerson(db: DB, id: number, patch: { name?: string; color?: string }): Person[] {
+export function updatePerson(
+  db: DB,
+  id: number,
+  patch: { name?: string; color?: string }
+): Person[] {
   const existing = db.prepare('SELECT * FROM people WHERE id = ?').get(id)
   if (!existing) throw new Error('Person not found')
   if (patch.name !== undefined) {
@@ -16,7 +27,8 @@ export function updatePerson(db: DB, id: number, patch: { name?: string; color?:
     if (!name) throw new Error('Name cannot be empty')
     db.prepare('UPDATE people SET name = ? WHERE id = ?').run(name, id)
   }
-  if (patch.color !== undefined) db.prepare('UPDATE people SET color = ? WHERE id = ?').run(patch.color, id)
+  if (patch.color !== undefined)
+    db.prepare('UPDATE people SET color = ? WHERE id = ?').run(patch.color, id)
   return listPeople(db)
 }
 
@@ -31,7 +43,13 @@ export function createAccount(db: DB, input: AccountInput): Account[] {
   if (!name) throw new Error('Account name is required')
   db.prepare(
     'INSERT INTO accounts (name, person_id, type, starting_balance_cents, currency) VALUES (?, ?, ?, ?, ?)'
-  ).run(name, input.personId, input.type, Math.round(input.startingBalanceCents), input.currency || 'USD')
+  ).run(
+    name,
+    input.personId,
+    input.type,
+    Math.round(input.startingBalanceCents),
+    input.currency || 'USD'
+  )
   return listAccounts(db)
 }
 
@@ -70,15 +88,22 @@ export function updateAccount(
     sets.push('archived = ?')
     vals.push(patch.archived ? 1 : 0)
   }
-  if (sets.length > 0) db.prepare(`UPDATE accounts SET ${sets.join(', ')} WHERE id = ?`).run(...vals, id)
+  if (sets.length > 0)
+    db.prepare(`UPDATE accounts SET ${sets.join(', ')} WHERE id = ?`).run(...vals, id)
   return listAccounts(db)
 }
 
 export function deleteAccount(db: DB, id: number): Account[] {
-  const used = db.prepare('SELECT COUNT(*) AS n FROM transactions WHERE account_id = ?').get(id) as { n: number }
-  const ruleUse = db.prepare('SELECT COUNT(*) AS n FROM recurring_rules WHERE account_id = ?').get(id) as { n: number }
+  const used = db
+    .prepare('SELECT COUNT(*) AS n FROM transactions WHERE account_id = ?')
+    .get(id) as { n: number }
+  const ruleUse = db
+    .prepare('SELECT COUNT(*) AS n FROM recurring_rules WHERE account_id = ?')
+    .get(id) as { n: number }
   if (used.n > 0 || ruleUse.n > 0) {
-    throw new Error('Account has transactions or recurring rules. Archive it instead, or delete those first.')
+    throw new Error(
+      'Account has transactions or recurring rules. Archive it instead, or delete those first.'
+    )
   }
   db.prepare('DELETE FROM accounts WHERE id = ?').run(id)
   return listAccounts(db)
@@ -100,7 +125,10 @@ export function accountBalances(db: DB): AccountBalance[] {
 // ----------------------------- Categories ---------------------------------
 
 export function listCategories(db: DB): Category[] {
-  return db.prepare("SELECT * FROM categories ORDER BY archived, type = 'income', name").all().map(rowToCategory)
+  return db
+    .prepare("SELECT * FROM categories ORDER BY archived, type = 'income', name")
+    .all()
+    .map(rowToCategory)
 }
 
 export function createCategory(db: DB, input: CategoryInput): Category[] {
@@ -146,7 +174,8 @@ export function updateCategory(
     sets.push('archived = ?')
     vals.push(patch.archived ? 1 : 0)
   }
-  if (sets.length > 0) db.prepare(`UPDATE categories SET ${sets.join(', ')} WHERE id = ?`).run(...vals, id)
+  if (sets.length > 0)
+    db.prepare(`UPDATE categories SET ${sets.join(', ')} WHERE id = ?`).run(...vals, id)
   return listCategories(db)
 }
 

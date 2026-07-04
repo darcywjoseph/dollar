@@ -341,12 +341,18 @@ export interface LedgerApi {
 
   listAccounts(): Promise<Account[]>
   createAccount(input: AccountInput): Promise<Account[]>
-  updateAccount(id: number, patch: Partial<AccountInput> & { archived?: boolean }): Promise<Account[]>
+  updateAccount(
+    id: number,
+    patch: Partial<AccountInput> & { archived?: boolean }
+  ): Promise<Account[]>
   deleteAccount(id: number): Promise<Account[]>
 
   listCategories(): Promise<Category[]>
   createCategory(input: CategoryInput): Promise<Category[]>
-  updateCategory(id: number, patch: Partial<CategoryInput> & { archived?: boolean }): Promise<Category[]>
+  updateCategory(
+    id: number,
+    patch: Partial<CategoryInput> & { archived?: boolean }
+  ): Promise<Category[]>
   deleteCategory(id: number): Promise<Category[]>
 
   listTransactions(filter: TransactionFilter): Promise<TransactionPage>

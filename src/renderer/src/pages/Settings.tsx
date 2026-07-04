@@ -23,7 +23,10 @@ function GeneralSection(): React.JSX.Element {
   const { settings, updateSetting, toast } = useApp()
   const [symbol, setSymbol] = useState(settings.currencySymbol)
 
-  const save = (key: 'currencySymbol' | 'firstDayOfMonth' | 'theme' | 'forecastWindow', value: string): void => {
+  const save = (
+    key: 'currencySymbol' | 'firstDayOfMonth' | 'theme' | 'forecastWindow',
+    value: string
+  ): void => {
     updateSetting(key, value).catch((err) => toast(err.message, 'error'))
   }
 
@@ -38,7 +41,8 @@ function GeneralSection(): React.JSX.Element {
             maxLength={4}
             onChange={(e) => setSymbol(e.target.value)}
             onBlur={() => {
-              if (symbol.trim() && symbol !== settings.currencySymbol) save('currencySymbol', symbol.trim())
+              if (symbol.trim() && symbol !== settings.currencySymbol)
+                save('currencySymbol', symbol.trim())
             }}
           />
         </div>
@@ -58,7 +62,11 @@ function GeneralSection(): React.JSX.Element {
         </div>
         <div>
           <label className="label">Theme</label>
-          <select className="input" value={settings.theme} onChange={(e) => save('theme', e.target.value)}>
+          <select
+            className="input"
+            value={settings.theme}
+            onChange={(e) => save('theme', e.target.value)}
+          >
             <option value="system">System</option>
             <option value="light">Light</option>
             <option value="dark">Dark</option>
@@ -66,15 +74,19 @@ function GeneralSection(): React.JSX.Element {
         </div>
         <div>
           <label className="label">Forecast average window</label>
-          <select className="input" value={settings.forecastWindow} onChange={(e) => save('forecastWindow', e.target.value)}>
+          <select
+            className="input"
+            value={settings.forecastWindow}
+            onChange={(e) => save('forecastWindow', e.target.value)}
+          >
             <option value={3}>3 months</option>
             <option value={6}>6 months</option>
           </select>
         </div>
       </div>
       <p className="mt-3 text-xs text-slate-400">
-        “Month starts on day” shifts every monthly period — useful if you budget payday-to-payday rather than by calendar
-        month.
+        “Month starts on day” shifts every monthly period — useful if you budget payday-to-payday
+        rather than by calendar month.
       </p>
     </Card>
   )
@@ -84,7 +96,9 @@ function GeneralSection(): React.JSX.Element {
 
 function PeopleSection(): React.JSX.Element {
   const { people, refresh, toast } = useApp()
-  const [names, setNames] = useState<Record<number, string>>(() => Object.fromEntries(people.map((p) => [p.id, p.name])))
+  const [names, setNames] = useState<Record<number, string>>(() =>
+    Object.fromEntries(people.map((p) => [p.id, p.name]))
+  )
 
   const commitName = async (id: number): Promise<void> => {
     const name = (names[id] ?? '').trim()
@@ -132,7 +146,9 @@ function PeopleSection(): React.JSX.Element {
           </div>
         ))}
       </div>
-      <p className="mt-3 text-xs text-slate-400">Each person&apos;s color marks their transactions, budgets, and goals across the app.</p>
+      <p className="mt-3 text-xs text-slate-400">
+        Each person&apos;s color marks their transactions, budgets, and goals across the app.
+      </p>
     </Card>
   )
 }
@@ -148,7 +164,8 @@ function AccountsSection(): React.JSX.Element {
   const remove = async (a: Account): Promise<void> => {
     const ok = await confirm({
       title: `Delete account “${a.name}”?`,
-      message: 'Only accounts without transactions or recurring rules can be deleted — otherwise archive it instead.',
+      message:
+        'Only accounts without transactions or recurring rules can be deleted — otherwise archive it instead.',
       confirmLabel: 'Delete',
       danger: true
     })
@@ -185,7 +202,10 @@ function AccountsSection(): React.JSX.Element {
         {accounts.map((a) => {
           const owner = a.personId != null ? people.find((p) => p.id === a.personId) : null
           return (
-            <li key={a.id} className={`flex items-center gap-3 py-2.5 ${a.archived ? 'opacity-50' : ''}`}>
+            <li
+              key={a.id}
+              className={`flex items-center gap-3 py-2.5 ${a.archived ? 'opacity-50' : ''}`}
+            >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 font-medium">
                   {a.name}
@@ -195,7 +215,10 @@ function AccountsSection(): React.JSX.Element {
                 <div className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-400">
                   {owner ? (
                     <>
-                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: owner.color }} />
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: owner.color }}
+                      />
                       {owner.name}
                     </>
                   ) : (
@@ -244,7 +267,9 @@ function AccountModal({
   const [name, setName] = useState(account?.name ?? '')
   const [personId, setPersonId] = useState<number | ''>(account?.personId ?? '')
   const [type, setType] = useState<AccountType>(account?.type ?? 'checking')
-  const [startingBalance, setStartingBalance] = useState(account ? (account.startingBalanceCents / 100).toFixed(2) : '0.00')
+  const [startingBalance, setStartingBalance] = useState(
+    account ? (account.startingBalanceCents / 100).toFixed(2) : '0.00'
+  )
   const [saving, setSaving] = useState(false)
 
   const submit = async (e: React.FormEvent): Promise<void> => {
@@ -278,12 +303,22 @@ function AccountModal({
       <form className="space-y-4" onSubmit={submit}>
         <div>
           <label className="label">Name</label>
-          <input className="input" required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+          <input
+            className="input"
+            required
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="label">Owner</label>
-            <select className="input" value={personId} onChange={(e) => setPersonId(e.target.value === '' ? '' : Number(e.target.value))}>
+            <select
+              className="input"
+              value={personId}
+              onChange={(e) => setPersonId(e.target.value === '' ? '' : Number(e.target.value))}
+            >
               <option value="">Joint</option>
               {people.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -294,7 +329,11 @@ function AccountModal({
           </div>
           <div>
             <label className="label">Type</label>
-            <select className="input" value={type} onChange={(e) => setType(e.target.value as AccountType)}>
+            <select
+              className="input"
+              value={type}
+              onChange={(e) => setType(e.target.value as AccountType)}
+            >
               {ACCOUNT_TYPES.map((t) => (
                 <option key={t} value={t}>
                   {t}
@@ -304,7 +343,12 @@ function AccountModal({
           </div>
           <div>
             <label className="label">Starting balance ({settings.currencySymbol})</label>
-            <input className="input text-right" inputMode="decimal" value={startingBalance} onChange={(e) => setStartingBalance(e.target.value)} />
+            <input
+              className="input text-right"
+              inputMode="decimal"
+              value={startingBalance}
+              onChange={(e) => setStartingBalance(e.target.value)}
+            />
           </div>
         </div>
         <div className="flex justify-end gap-2">
@@ -329,7 +373,8 @@ function CategoriesSection(): React.JSX.Element {
   const remove = async (c: Category): Promise<void> => {
     const ok = await confirm({
       title: `Delete category “${c.name}”?`,
-      message: 'Transactions in this category become Uncategorized and its budgets are removed. Consider archiving instead to keep history tidy.',
+      message:
+        'Transactions in this category become Uncategorized and its budgets are removed. Consider archiving instead to keep history tidy.',
       confirmLabel: 'Delete',
       danger: true
     })
@@ -369,24 +414,38 @@ function CategoriesSection(): React.JSX.Element {
       <div className="space-y-4">
         {groups.map((g) => (
           <div key={g.label}>
-            <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">{g.label}</h4>
+            <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              {g.label}
+            </h4>
             <ul className="grid grid-cols-1 gap-x-6 md:grid-cols-2">
               {g.items.map((c) => (
                 <li
                   key={c.id}
                   className={`flex items-center gap-2.5 border-b border-slate-100 py-2 dark:border-slate-700/60 ${c.archived ? 'opacity-50' : ''}`}
                 >
-                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
+                  <span
+                    className="h-3 w-3 shrink-0 rounded-full"
+                    style={{ backgroundColor: c.color }}
+                  />
                   <span className="min-w-0 flex-1 truncate text-sm">
                     {c.icon} {c.name} {c.archived && <Badge tone="warn">archived</Badge>}
                   </span>
-                  <button className="text-xs text-slate-400 hover:text-indigo-600" onClick={() => setEditing(c)}>
+                  <button
+                    className="text-xs text-slate-400 hover:text-indigo-600"
+                    onClick={() => setEditing(c)}
+                  >
                     Edit
                   </button>
-                  <button className="text-xs text-slate-400 hover:text-amber-600" onClick={() => toggleArchive(c)}>
+                  <button
+                    className="text-xs text-slate-400 hover:text-amber-600"
+                    onClick={() => toggleArchive(c)}
+                  >
                     {c.archived ? 'Restore' : 'Archive'}
                   </button>
-                  <button className="text-xs text-slate-400 hover:text-red-500" onClick={() => remove(c)}>
+                  <button
+                    className="text-xs text-slate-400 hover:text-red-500"
+                    onClick={() => remove(c)}
+                  >
                     Delete
                   </button>
                 </li>
@@ -446,17 +505,32 @@ function CategoryModal({
         <div className="grid grid-cols-[1fr_6rem] gap-3">
           <div>
             <label className="label">Name</label>
-            <input className="input" required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+            <input
+              className="input"
+              required
+              autoFocus
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
           </div>
           <div>
             <label className="label">Emoji</label>
-            <input className="input text-center" value={icon} maxLength={4} onChange={(e) => setIcon(e.target.value)} />
+            <input
+              className="input text-center"
+              value={icon}
+              maxLength={4}
+              onChange={(e) => setIcon(e.target.value)}
+            />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label">Type</label>
-            <select className="input" value={type} onChange={(e) => setType(e.target.value as 'expense' | 'income')}>
+            <select
+              className="input"
+              value={type}
+              onChange={(e) => setType(e.target.value as 'expense' | 'income')}
+            >
               <option value="expense">Expense</option>
               <option value="income">Income</option>
             </select>
@@ -505,7 +579,8 @@ function DataSection(): React.JSX.Element {
   const doImport = async (): Promise<void> => {
     const ok = await confirm({
       title: 'Restore from backup?',
-      message: 'Restoring replaces ALL current data — people, accounts, transactions, budgets, goals, and settings — with the backup contents. This cannot be undone.',
+      message:
+        'Restoring replaces ALL current data — people, accounts, transactions, budgets, goals, and settings — with the backup contents. This cannot be undone.',
       confirmLabel: 'Choose backup file',
       danger: true
     })
@@ -535,8 +610,8 @@ function DataSection(): React.JSX.Element {
         </Button>
       </div>
       <p className="mt-3 text-xs text-slate-400">
-        Everything is stored locally in an SQLite database in your user-data folder. The JSON backup contains all data
-        and can be restored on any machine running dollar.
+        Everything is stored locally in an SQLite database in your user-data folder. The JSON backup
+        contains all data and can be restored on any machine running dollar.
       </p>
     </Card>
   )

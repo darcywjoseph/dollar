@@ -33,7 +33,15 @@ export function importBackup(db: DB, data: unknown): void {
   if (!d || typeof d !== 'object' || d.version !== BACKUP_VERSION) {
     throw new Error('Not a valid dollar backup file')
   }
-  for (const key of ['people', 'accounts', 'categories', 'transactions', 'recurringRules', 'budgets', 'savingsGoals'] as const) {
+  for (const key of [
+    'people',
+    'accounts',
+    'categories',
+    'transactions',
+    'recurringRules',
+    'budgets',
+    'savingsGoals'
+  ] as const) {
     if (!Array.isArray(d[key])) throw new Error(`Backup is missing "${key}"`)
   }
   if (d.people.length !== 2) throw new Error('Backup must contain exactly two people')
@@ -55,13 +63,22 @@ export function importBackup(db: DB, data: unknown): void {
       'INSERT INTO accounts (id, name, person_id, type, starting_balance_cents, currency, archived) VALUES (?, ?, ?, ?, ?, ?, ?)'
     )
     for (const a of d.accounts) {
-      insAccount.run(a.id, a.name, a.personId, a.type, a.startingBalanceCents, a.currency, a.archived ? 1 : 0)
+      insAccount.run(
+        a.id,
+        a.name,
+        a.personId,
+        a.type,
+        a.startingBalanceCents,
+        a.currency,
+        a.archived ? 1 : 0
+      )
     }
 
     const insCategory = db.prepare(
       'INSERT INTO categories (id, name, type, icon, color, archived) VALUES (?, ?, ?, ?, ?, ?)'
     )
-    for (const c of d.categories) insCategory.run(c.id, c.name, c.type, c.icon, c.color, c.archived ? 1 : 0)
+    for (const c of d.categories)
+      insCategory.run(c.id, c.name, c.type, c.icon, c.color, c.archived ? 1 : 0)
 
     const insRule = db.prepare(
       `INSERT INTO recurring_rules (id, name, amount_cents, category_id, account_id, person_id, frequency, next_due, end_date, notes, active)
@@ -69,8 +86,17 @@ export function importBackup(db: DB, data: unknown): void {
     )
     for (const r of d.recurringRules) {
       insRule.run(
-        r.id, r.name, r.amountCents, r.categoryId, r.accountId, r.personId,
-        r.frequency, r.nextDue, r.endDate, r.notes, r.active ? 1 : 0
+        r.id,
+        r.name,
+        r.amountCents,
+        r.categoryId,
+        r.accountId,
+        r.personId,
+        r.frequency,
+        r.nextDue,
+        r.endDate,
+        r.notes,
+        r.active ? 1 : 0
       )
     }
 
@@ -81,19 +107,40 @@ export function importBackup(db: DB, data: unknown): void {
     )
     for (const t of d.transactions) {
       insTx.run(
-        t.id, t.date, t.amountCents, t.payee, t.categoryId, t.accountId, t.personId, t.notes, t.tags,
-        t.isRecurringInstance ? 1 : 0, t.recurringRuleId, t.importHash, t.createdAt
+        t.id,
+        t.date,
+        t.amountCents,
+        t.payee,
+        t.categoryId,
+        t.accountId,
+        t.personId,
+        t.notes,
+        t.tags,
+        t.isRecurringInstance ? 1 : 0,
+        t.recurringRuleId,
+        t.importHash,
+        t.createdAt
       )
     }
 
-    const insBudget = db.prepare('INSERT INTO budgets (id, month, category_id, person_id, amount_cents) VALUES (?, ?, ?, ?, ?)')
+    const insBudget = db.prepare(
+      'INSERT INTO budgets (id, month, category_id, person_id, amount_cents) VALUES (?, ?, ?, ?, ?)'
+    )
     for (const b of d.budgets) insBudget.run(b.id, b.month, b.categoryId, b.personId, b.amountCents)
 
     const insGoal = db.prepare(
       'INSERT INTO savings_goals (id, name, target_cents, target_date, person_id, account_ids, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
     )
     for (const g of d.savingsGoals) {
-      insGoal.run(g.id, g.name, g.targetCents, g.targetDate, g.personId, JSON.stringify(g.accountIds), g.createdAt)
+      insGoal.run(
+        g.id,
+        g.name,
+        g.targetCents,
+        g.targetDate,
+        g.personId,
+        JSON.stringify(g.accountIds),
+        g.createdAt
+      )
     }
 
     const insSetting = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)')

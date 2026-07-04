@@ -52,15 +52,35 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
   const salary = categories.find((c) => c.name === 'Salary')!
   const acct1 = accounts[0]
   const acct2 = accounts[1]
-  core.createAccount(db, { name: 'Joint Savings', personId: null, type: 'savings', startingBalanceCents: 500000, currency: 'USD' })
+  core.createAccount(db, {
+    name: 'Joint Savings',
+    personId: null,
+    type: 'savings',
+    startingBalanceCents: 500000,
+    currency: 'USD'
+  })
 
   const nowMonth = currentMonthKey(1)
   for (let back = 4; back >= 0; back--) {
     const m = addMonthKey(nowMonth, -back)
     const { start } = monthRange(m, 1)
     if (start > todayISO()) continue
-    tx.createTransaction(db, { date: start, amountCents: 400000, payee: 'Acme Corp Payroll', categoryId: salary.id, accountId: acct1.id, personId: 1 })
-    tx.createTransaction(db, { date: start, amountCents: 380000, payee: 'Globex Payroll', categoryId: salary.id, accountId: acct2.id, personId: 2 })
+    tx.createTransaction(db, {
+      date: start,
+      amountCents: 400000,
+      payee: 'Acme Corp Payroll',
+      categoryId: salary.id,
+      accountId: acct1.id,
+      personId: 1
+    })
+    tx.createTransaction(db, {
+      date: start,
+      amountCents: 380000,
+      payee: 'Globex Payroll',
+      categoryId: salary.id,
+      accountId: acct2.id,
+      personId: 2
+    })
     for (const [day, amount, payee, cat, person, acct] of [
       [2, -85043, 'Whole Foods', groceries.id, 1, acct1.id],
       [8, -12385, 'Thai Palace', dining.id, 2, acct2.id],
@@ -69,14 +89,26 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
     ] as const) {
       const d = addDaysISO(start, day)
       if (d <= todayISO()) {
-        tx.createTransaction(db, { date: d, amountCents: amount, payee, categoryId: cat, accountId: acct, personId: person })
+        tx.createTransaction(db, {
+          date: d,
+          amountCents: amount,
+          payee,
+          categoryId: cat,
+          accountId: acct,
+          personId: person
+        })
       }
     }
   }
 
   // --- transaction CRUD ---
   const created = tx.createTransaction(db, {
-    date: todayISO(), amountCents: -4599, payee: 'Test Coffee', categoryId: dining.id, accountId: acct1.id, personId: 1
+    date: todayISO(),
+    amountCents: -4599,
+    payee: 'Test Coffee',
+    categoryId: dining.id,
+    accountId: acct1.id,
+    personId: 1
   })
   const updated = tx.updateTransaction(db, created.id, { amountCents: -4999 })
   assert(updated.amountCents === -4999, 'transaction update')
@@ -92,16 +124,27 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
     { date: '2026-06-11', amountCents: -1500, payee: 'Bakery', categoryId: groceries.id }
   ]
   const r1 = tx.importTransactions(db, { rows, accountId: acct1.id, personId: 1 })
-  assert(r1.imported === 3 && r1.skipped === 0, `first import keeps in-file duplicates (got ${JSON.stringify(r1)})`)
+  assert(
+    r1.imported === 3 && r1.skipped === 0,
+    `first import keeps in-file duplicates (got ${JSON.stringify(r1)})`
+  )
   const r2 = tx.importTransactions(db, { rows, accountId: acct1.id, personId: 1 })
-  assert(r2.imported === 0 && r2.skipped === 3, `re-import is fully deduped (got ${JSON.stringify(r2)})`)
+  assert(
+    r2.imported === 0 && r2.skipped === 3,
+    `re-import is fully deduped (got ${JSON.stringify(r2)})`
+  )
   assert(tx.listTransactions(db, {}).total === before + 3, 'import count')
   results.import = { first: r1, second: r2 }
 
   // --- recurring rules ---
   const rules = recurring.createRecurring(db, {
-    name: 'Netflix', amountCents: -1599, categoryId: null, accountId: acct1.id, personId: 1,
-    frequency: 'monthly', nextDue: addMonthKey(nowMonth, -2) + '-05'
+    name: 'Netflix',
+    amountCents: -1599,
+    categoryId: null,
+    accountId: acct1.id,
+    personId: 1,
+    frequency: 'monthly',
+    nextDue: addMonthKey(nowMonth, -2) + '-05'
   })
   assert(rules.length === 1, 'rule created')
   const instances = tx.listTransactions(db, { search: 'Netflix' })
@@ -124,7 +167,13 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
 
   // --- goals ---
   const savingsAcct = core.listAccounts(db).find((a) => a.name === 'Joint Savings')!
-  const gp = goals.createGoal(db, { name: 'Vacation', targetCents: 1000000, targetDate: `${new Date().getFullYear() + 1}-06-01`, personId: null, accountIds: [savingsAcct.id] })
+  const gp = goals.createGoal(db, {
+    name: 'Vacation',
+    targetCents: 1000000,
+    targetDate: `${new Date().getFullYear() + 1}-06-01`,
+    personId: null,
+    accountIds: [savingsAcct.id]
+  })
   assert(gp.length === 1 && gp[0].currentCents === 500000, 'goal progress from linked account')
 
   // --- analytics ---
@@ -138,14 +187,24 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
   assert(forecast.variableAverages.length > 0, 'variable averages computed')
   const report = analytics.getYearReport(db, forecast.year, null)
   assert(report.byMonth.length === 12, 'year report months')
-  results.dashboard = { income: dash.incomeCents, spending: dash.spendingCents, savings: dash.savingsBalanceCents }
-  results.forecast = { averages: forecast.variableAverages.length, recurringFlows: forecast.recurringFlows.length }
+  results.dashboard = {
+    income: dash.incomeCents,
+    spending: dash.spendingCents,
+    savings: dash.savingsBalanceCents
+  }
+  results.forecast = {
+    averages: forecast.variableAverages.length,
+    recurringFlows: forecast.recurringFlows.length
+  }
 
   // --- backup roundtrip ---
   const dump = backup.exportBackup(db)
   backup.importBackup(db, JSON.parse(JSON.stringify(dump)))
   const after = backup.exportBackup(db)
-  assert(after.transactions.length === dump.transactions.length, 'backup roundtrip preserves transactions')
+  assert(
+    after.transactions.length === dump.transactions.length,
+    'backup roundtrip preserves transactions'
+  )
   assert(after.budgets.length === dump.budgets.length, 'backup roundtrip preserves budgets')
   results.backup = { transactions: after.transactions.length }
 
@@ -153,7 +212,9 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
   const win = createWindow()
   await new Promise<void>((resolve, reject) => {
     win.webContents.once('did-finish-load', () => resolve())
-    win.webContents.once('did-fail-load', (_e, code, desc) => reject(new Error(`renderer failed to load: ${code} ${desc}`)))
+    win.webContents.once('did-fail-load', (_e, code, desc) =>
+      reject(new Error(`renderer failed to load: ${code} ${desc}`))
+    )
     setTimeout(() => reject(new Error('renderer load timeout')), 30000)
   })
   const crashed: string[] = []

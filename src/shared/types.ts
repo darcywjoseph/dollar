@@ -87,6 +87,74 @@ export interface SavingsGoal {
   createdAt: string
 }
 
+export type PayFrequency = 'weekly' | 'biweekly' | 'monthly'
+
+export interface PaySchedule {
+  id: number
+  personId: number
+  /** employer / label */
+  name: string
+  frequency: PayFrequency
+  /** a known pay date; expected events repeat from here in both directions */
+  anchorDate: string
+  expectedNetCents: number
+  expectedGrossCents: number
+  /** account the pay lands in */
+  accountId: number
+  active: boolean
+}
+
+export type PayslipTransactionSource = 'created' | 'linked' | 'none'
+
+export interface Payslip {
+  id: number
+  personId: number
+  /** ISO date the pay hit (or should hit) the bank */
+  payDate: string
+  periodStart: string | null
+  periodEnd: string | null
+  employer: string
+  /** pre-tax pay */
+  grossCents: number
+  /** income tax withheld */
+  taxCents: number
+  /** employer super guarantee */
+  superCents: number
+  /** salary sacrifice / voluntary super */
+  superExtraCents: number
+  hecsCents: number
+  otherDeductionsCents: number
+  /** take-home pay; owns one ledger transaction */
+  netCents: number
+  payScheduleId: number | null
+  transactionId: number | null
+  transactionSource: PayslipTransactionSource
+  pdfPath: string | null
+  notes: string | null
+  createdAt: string
+}
+
+export type TrackedBalanceKind = 'super' | 'hecs'
+
+export interface TrackedBalance {
+  id: number
+  personId: number
+  kind: TrackedBalanceKind
+  startingCents: number
+  /** payslips on/after this date count toward the balance */
+  startingDate: string
+}
+
+export interface BalanceAdjustment {
+  id: number
+  personId: number
+  kind: TrackedBalanceKind
+  date: string
+  /** signed; HECS indexation is positive (debt goes up) */
+  amountCents: number
+  note: string | null
+}
+
 export interface AppSettings {
   currencySymbol: string
   /** 1..28 — day the budgeting month begins */
@@ -192,6 +260,56 @@ export interface GoalInput {
   accountIds: number[]
 }
 
+export interface PayslipInput {
+  personId: number
+  payDate: string
+  periodStart?: string | null
+  periodEnd?: string | null
+  employer: string
+  grossCents: number
+  taxCents: number
+  superCents: number
+  superExtraCents: number
+  hecsCents: number
+  otherDeductionsCents: number
+  netCents: number
+  notes?: string | null
+  pdfPath?: string | null
+}
+
+export interface PayslipSaveOptions {
+  /** account the net-pay transaction is created in (ignored when linking) */
+  accountId: number
+  categoryId: number | null
+  /** adopt this existing bank transaction instead of creating one */
+  linkTransactionId?: number | null
+}
+
+export interface PayslipFilter {
+  personId?: number
+  from?: string
+  to?: string
+}
+
+export interface PayScheduleInput {
+  personId: number
+  name: string
+  frequency: PayFrequency
+  anchorDate: string
+  expectedNetCents: number
+  expectedGrossCents?: number
+  accountId: number
+  active?: boolean
+}
+
+export interface BalanceAdjustmentInput {
+  personId: number
+  kind: TrackedBalanceKind
+  date: string
+  amountCents: number
+  note?: string | null
+}
+
 // Analytics / computed results
 
 export interface CategorySpend {
@@ -226,6 +344,8 @@ export interface DashboardSummary {
   spendingCents: number
   netCents: number
   savingsBalanceCents: number
+  /** expected pay events later this month with no payslip yet */
+  expectedIncomeRemainingCents: number
   byCategory: CategorySpend[]
   budgetVsActual: BudgetVsActual[]
   trend: MonthPoint[]
@@ -275,6 +395,77 @@ export interface RecurringMonthFlow {
   spendingCents: number
 }
 
+/** Expected pay per (month, person) from active pay schedules. */
+export interface ExpectedPayFlow {
+  month: string
+  personId: number
+  netCents: number
+}
+
+/** One expected pay event matched (or not) against an actual payslip. */
+export interface PayEventRow {
+  scheduleId: number
+  scheduleName: string
+  personId: number
+  expectedDate: string
+  expectedNetCents: number
+  payslipId: number | null
+  actualDate: string | null
+  actualNetCents: number | null
+  /** actual − expected; null until received */
+  varianceCents: number | null
+  status: 'received' | 'upcoming' | 'missed'
+}
+
+export interface IncomePersonTotals {
+  personId: number
+  expectedCents: number
+  actualCents: number
+  varianceCents: number
+}
+
+export interface IncomeSummary {
+  month: string
+  events: PayEventRow[]
+  /** payslips in the month not matched to any schedule */
+  unscheduledPayslips: Payslip[]
+  totals: IncomePersonTotals[]
+}
+
+export interface TrackedBalancePanel {
+  personId: number
+  kind: TrackedBalanceKind
+  /** null when not configured yet */
+  config: TrackedBalance | null
+  /** payslip flows since startingDate (super contributions / HECS deductions) */
+  contributionsCents: number
+  adjustmentsCents: number
+  /** null when unconfigured */
+  currentCents: number | null
+  /** payslip flows in the current Australian FY (Jul–Jun) */
+  fyContributionsCents: number
+  adjustments: BalanceAdjustment[]
+}
+
+export interface FYPersonTotals {
+  personId: number
+  payslipCount: number
+  grossCents: number
+  taxCents: number
+  superCents: number
+  superExtraCents: number
+  hecsCents: number
+  otherDeductionsCents: number
+  netCents: number
+}
+
+export interface FYIncomeReport {
+  /** FY starting 1 July of this year */
+  fyStartYear: number
+  perPerson: FYPersonTotals[]
+  byMonth: { month: string; personId: number; grossCents: number; netCents: number }[]
+}
+
 export interface ForecastActualMonth {
   month: string
   /** per person id (string key) net cents; income/spending combined below */
@@ -297,6 +488,12 @@ export interface ForecastData {
   variableAverages: VariableAverage[]
   /** expanded recurring flows for FUTURE months (after the current one) */
   recurringFlows: RecurringMonthFlow[]
+  /** expected pay for FUTURE months from active schedules */
+  expectedPayFlows: ExpectedPayFlow[]
+  /** expected pay events still to come in the current month (no payslip yet) */
+  currentMonthRemainingExpectedPay: ExpectedPayFlow[]
+  /** people whose income is projected from a pay schedule, not averages */
+  scheduledPersonIds: number[]
   /** current total balance per person id (string key) plus 'joint' */
   balancesByOwner: Record<string, number>
   windowMonths: number
@@ -322,6 +519,11 @@ export interface BackupData {
   recurringRules: RecurringRule[]
   budgets: Budget[]
   savingsGoals: SavingsGoal[]
+  /** absent in v1 backups; default to [] on import */
+  payslips?: Payslip[]
+  paySchedules?: PaySchedule[]
+  trackedBalances?: TrackedBalance[]
+  balanceAdjustments?: BalanceAdjustment[]
 }
 
 export interface Bootstrap {
@@ -361,6 +563,37 @@ export interface LedgerApi {
   deleteTransactions(ids: number[]): Promise<number>
   getPayeeSuggestions(): Promise<PayeeSuggestion[]>
   importTransactions(req: ImportRequest): Promise<ImportResult>
+
+  listPayslips(filter: PayslipFilter): Promise<Payslip[]>
+  createPayslip(input: PayslipInput, opts: PayslipSaveOptions): Promise<Payslip>
+  updatePayslip(id: number, patch: Partial<PayslipInput>): Promise<Payslip>
+  deletePayslip(id: number): Promise<Payslip[]>
+  matchImportRowsToPayslips(
+    rows: { date: string; amountCents: number }[],
+    personId: number
+  ): Promise<(number | null)[]>
+  findBankMatchesForPayslip(
+    personId: number,
+    netCents: number,
+    payDate: string
+  ): Promise<Transaction[]>
+
+  listPaySchedules(): Promise<PaySchedule[]>
+  createPaySchedule(input: PayScheduleInput): Promise<PaySchedule[]>
+  updatePaySchedule(id: number, patch: Partial<PayScheduleInput>): Promise<PaySchedule[]>
+  deletePaySchedule(id: number): Promise<PaySchedule[]>
+  getIncomeSummary(month: string): Promise<IncomeSummary>
+
+  getTrackedBalances(): Promise<TrackedBalancePanel[]>
+  setTrackedBalance(
+    personId: number,
+    kind: TrackedBalanceKind,
+    startingCents: number,
+    startingDate: string
+  ): Promise<TrackedBalancePanel[]>
+  createBalanceAdjustment(input: BalanceAdjustmentInput): Promise<TrackedBalancePanel[]>
+  deleteBalanceAdjustment(id: number): Promise<TrackedBalancePanel[]>
+  getFinancialYearIncome(fyStartYear: number, personId: number | null): Promise<FYIncomeReport>
 
   listRecurring(): Promise<RecurringRule[]>
   createRecurring(input: RecurringRuleInput): Promise<RecurringRule[]>

@@ -3,10 +3,16 @@ import { readFile, writeFile } from 'fs/promises'
 import type { Database as DB } from 'better-sqlite3'
 import type {
   AccountInput,
+  BalanceAdjustmentInput,
   CategoryInput,
   GoalInput,
   ImportRequest,
+  PayScheduleInput,
+  PayslipFilter,
+  PayslipInput,
+  PayslipSaveOptions,
   RecurringRuleInput,
+  TrackedBalanceKind,
   TransactionFilter,
   TransactionInput
 } from '@shared/types'
@@ -17,6 +23,8 @@ import * as budgets from './db/budgets'
 import * as goals from './db/goals'
 import * as analytics from './db/analytics'
 import * as backup from './db/backup'
+import * as payslips from './db/payslips'
+import * as income from './db/income'
 import { getSettings, setSetting } from './db/helpers'
 
 const SETTING_KEYS = new Set([
@@ -76,6 +84,45 @@ export function registerIpcHandlers(db: DB, getWindow: () => BrowserWindow | nul
   handle('deleteTransactions', (ids: number[]) => tx.deleteTransactions(db, ids))
   handle('getPayeeSuggestions', () => tx.getPayeeSuggestions(db))
   handle('importTransactions', (req: ImportRequest) => tx.importTransactions(db, req))
+
+  handle('listPayslips', (filter: PayslipFilter) => payslips.listPayslips(db, filter ?? {}))
+  handle('createPayslip', (input: PayslipInput, opts: PayslipSaveOptions) =>
+    payslips.createPayslip(db, input, opts)
+  )
+  handle('updatePayslip', (id: number, patch: Partial<PayslipInput>) =>
+    payslips.updatePayslip(db, id, patch)
+  )
+  handle('deletePayslip', (id: number) => payslips.deletePayslip(db, id))
+  handle(
+    'matchImportRowsToPayslips',
+    (rows: { date: string; amountCents: number }[], personId: number) =>
+      payslips.matchImportRowsToPayslips(db, rows ?? [], personId)
+  )
+  handle('findBankMatchesForPayslip', (personId: number, netCents: number, payDate: string) =>
+    payslips.findBankMatchesForPayslip(db, personId, netCents, payDate)
+  )
+
+  handle('listPaySchedules', () => payslips.listPaySchedules(db))
+  handle('createPaySchedule', (input: PayScheduleInput) => payslips.createPaySchedule(db, input))
+  handle('updatePaySchedule', (id: number, patch: Partial<PayScheduleInput>) =>
+    payslips.updatePaySchedule(db, id, patch)
+  )
+  handle('deletePaySchedule', (id: number) => payslips.deletePaySchedule(db, id))
+  handle('getIncomeSummary', (month: string) => payslips.getIncomeSummary(db, month))
+
+  handle('getTrackedBalances', () => income.getTrackedBalances(db))
+  handle(
+    'setTrackedBalance',
+    (personId: number, kind: TrackedBalanceKind, startingCents: number, startingDate: string) =>
+      income.setTrackedBalance(db, personId, kind, startingCents, startingDate)
+  )
+  handle('createBalanceAdjustment', (input: BalanceAdjustmentInput) =>
+    income.createBalanceAdjustment(db, input)
+  )
+  handle('deleteBalanceAdjustment', (id: number) => income.deleteBalanceAdjustment(db, id))
+  handle('getFinancialYearIncome', (fyStartYear: number, personId: number | null) =>
+    income.getFinancialYearIncome(db, fyStartYear, personId)
+  )
 
   handle('listRecurring', () => recurring.listRecurring(db))
   handle('createRecurring', (input: RecurringRuleInput) => recurring.createRecurring(db, input))

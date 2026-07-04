@@ -304,8 +304,25 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
     },
     { accountId: acct2.id, categoryId: salary.id }
   )
+  const pdfBytes = Buffer.from('%PDF-1.4 smoke test payslip')
+  payslips.setPayslipPdf(db, throwaway.id, 'one-off-payslip.pdf', pdfBytes)
+  assert(
+    payslips.getPayslip(db, throwaway.id).pdfFilename === 'one-off-payslip.pdf',
+    'pdf filename surfaces on the payslip'
+  )
+  const storedPdf = payslips.getPayslipPdf(db, throwaway.id)
+  assert(storedPdf != null && storedPdf.data.equals(pdfBytes), 'pdf bytes roundtrip through sqlite')
+  payslips.removePayslipPdf(db, throwaway.id)
+  assert(payslips.getPayslip(db, throwaway.id).pdfFilename === null, 'pdf can be detached')
+  payslips.setPayslipPdf(db, throwaway.id, 'one-off-payslip.pdf', pdfBytes)
   const txBeforeDelete = tx.listTransactions(db, {}).total
   payslips.deletePayslip(db, throwaway.id)
+  assert(
+    payslips.getPayslipPdf(db, throwaway.id) === null,
+    'deleting a payslip cascades to its stored pdf'
+  )
+  // leave a PDF on the surviving payslip so the backup roundtrip covers it
+  payslips.setPayslipPdf(db, slip.id, 'acme-payslip.pdf', pdfBytes)
   assert(
     tx.listTransactions(db, {}).total === txBeforeDelete - 1,
     'deleting a created payslip removes its ledger row'
@@ -385,6 +402,7 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
   delete v1.paySchedules
   delete v1.trackedBalances
   delete v1.balanceAdjustments
+  delete v1.payslipFiles
   backup.importBackup(db, v1)
   assert(backup.exportBackup(db).payslips!.length === 0, 'v1 backup restores without payslips')
   backup.importBackup(db, JSON.parse(JSON.stringify(dump)))
@@ -401,7 +419,21 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
       after.balanceAdjustments!.length === dump.balanceAdjustments!.length,
     'backup roundtrip preserves payslip tables'
   )
-  results.backup = { transactions: after.transactions.length, payslips: after.payslips!.length }
+  assert(
+    after.payslipFiles!.length === 1 &&
+      after.payslipFiles![0].dataBase64 === dump.payslipFiles![0].dataBase64,
+    'backup roundtrip preserves attached pdf bytes'
+  )
+  const restoredPdf = payslips.getPayslipPdf(db, slip.id)
+  assert(
+    restoredPdf != null && restoredPdf.data.equals(pdfBytes),
+    'restored pdf matches the original bytes'
+  )
+  results.backup = {
+    transactions: after.transactions.length,
+    payslips: after.payslips!.length,
+    payslipFiles: after.payslipFiles!.length
+  }
 
   // --- boot the UI and screenshot key pages ---
   const win = createWindow()

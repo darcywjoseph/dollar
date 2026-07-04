@@ -129,7 +129,8 @@ export interface Payslip {
   payScheduleId: number | null
   transactionId: number | null
   transactionSource: PayslipTransactionSource
-  pdfPath: string | null
+  /** original filename of the attached PDF stored inside the database */
+  pdfFilename: string | null
   notes: string | null
   createdAt: string
 }
@@ -274,7 +275,6 @@ export interface PayslipInput {
   otherDeductionsCents: number
   netCents: number
   notes?: string | null
-  pdfPath?: string | null
 }
 
 export interface PayslipSaveOptions {
@@ -283,7 +283,13 @@ export interface PayslipSaveOptions {
   categoryId: number | null
   /** adopt this existing bank transaction instead of creating one */
   linkTransactionId?: number | null
+  /** read this file and store it inside the database as the payslip's PDF */
+  pdfSourcePath?: string | null
 }
+
+/** Update payload: entity fields plus PDF handling. `pdfSourcePath` string =
+ * attach/replace from that file, null = remove, absent = leave unchanged. */
+export type PayslipPatch = Partial<PayslipInput> & { pdfSourcePath?: string | null }
 
 export interface PayslipFilter {
   personId?: number
@@ -524,6 +530,8 @@ export interface BackupData {
   paySchedules?: PaySchedule[]
   trackedBalances?: TrackedBalance[]
   balanceAdjustments?: BalanceAdjustment[]
+  /** attached payslip PDFs, base64-encoded */
+  payslipFiles?: { payslipId: number; filename: string; dataBase64: string }[]
 }
 
 export interface Bootstrap {
@@ -566,8 +574,12 @@ export interface LedgerApi {
 
   listPayslips(filter: PayslipFilter): Promise<Payslip[]>
   createPayslip(input: PayslipInput, opts: PayslipSaveOptions): Promise<Payslip>
-  updatePayslip(id: number, patch: Partial<PayslipInput>): Promise<Payslip>
+  updatePayslip(id: number, patch: PayslipPatch): Promise<Payslip>
   deletePayslip(id: number): Promise<Payslip[]>
+  /** native file picker for a payslip PDF; path is stored on the payslip */
+  pickPayslipPdf(): Promise<{ path: string | null }>
+  /** open a payslip's attached PDF in the system viewer */
+  openPayslipPdf(id: number): Promise<{ opened: boolean; error?: string }>
   matchImportRowsToPayslips(
     rows: { date: string; amountCents: number }[],
     personId: number

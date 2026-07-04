@@ -127,7 +127,7 @@ export function rowToPayslip(r: any): Payslip {
     payScheduleId: r.pay_schedule_id,
     transactionId: r.transaction_id,
     transactionSource: r.transaction_source,
-    pdfPath: r.pdf_path,
+    pdfFilename: r.pdf_filename ?? null,
     notes: r.notes,
     createdAt: r.created_at
   }

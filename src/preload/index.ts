@@ -22,6 +22,8 @@ const CHANNELS = [
   'createPayslip',
   'updatePayslip',
   'deletePayslip',
+  'pickPayslipPdf',
+  'openPayslipPdf',
   'matchImportRowsToPayslips',
   'findBankMatchesForPayslip',
   'listPaySchedules',

@@ -26,6 +26,10 @@ import { createTransaction, updateTransaction } from './transactions'
 /** Days either side of the pay date a bank deposit may land and still match. */
 export const PAYSLIP_MATCH_TOLERANCE_DAYS = 3
 
+// Payslip rows always carry the attached PDF's filename (never its bytes).
+const PAYSLIP_SELECT = `SELECT p.*, f.filename AS pdf_filename
+  FROM payslips p LEFT JOIN payslip_files f ON f.payslip_id = p.id`
+
 // ---------------------------------------------------------------------------
 // Payslips
 // ---------------------------------------------------------------------------
@@ -34,28 +38,56 @@ export function listPayslips(db: DB, filter: PayslipFilter): Payslip[] {
   const conds: string[] = []
   const params: unknown[] = []
   if (filter.personId != null) {
-    conds.push('person_id = ?')
+    conds.push('p.person_id = ?')
     params.push(filter.personId)
   }
   if (filter.from) {
-    conds.push('pay_date >= ?')
+    conds.push('p.pay_date >= ?')
     params.push(filter.from)
   }
   if (filter.to) {
-    conds.push('pay_date < ?')
+    conds.push('p.pay_date < ?')
     params.push(filter.to)
   }
   const where = conds.length ? `WHERE ${conds.join(' AND ')}` : ''
   return db
-    .prepare(`SELECT * FROM payslips ${where} ORDER BY pay_date DESC, id DESC`)
+    .prepare(`${PAYSLIP_SELECT} ${where} ORDER BY p.pay_date DESC, p.id DESC`)
     .all(...params)
     .map(rowToPayslip)
 }
 
-function getPayslip(db: DB, id: number): Payslip {
-  const row = db.prepare('SELECT * FROM payslips WHERE id = ?').get(id)
+export function getPayslip(db: DB, id: number): Payslip {
+  const row = db.prepare(`${PAYSLIP_SELECT} WHERE p.id = ?`).get(id)
   if (!row) throw new Error('Payslip not found')
   return rowToPayslip(row)
+}
+
+// ---------------------------------------------------------------------------
+// Attached PDFs (stored as blobs so they travel with the database)
+// ---------------------------------------------------------------------------
+
+export function setPayslipPdf(db: DB, payslipId: number, filename: string, data: Buffer): void {
+  getPayslip(db, payslipId)
+  if (!filename.trim()) throw new Error('Filename is required')
+  if (data.length === 0) throw new Error('PDF file is empty')
+  db.prepare(
+    `INSERT INTO payslip_files (payslip_id, filename, data) VALUES (?, ?, ?)
+     ON CONFLICT(payslip_id) DO UPDATE SET filename = excluded.filename, data = excluded.data`
+  ).run(payslipId, filename.trim(), data)
+}
+
+export function removePayslipPdf(db: DB, payslipId: number): void {
+  db.prepare('DELETE FROM payslip_files WHERE payslip_id = ?').run(payslipId)
+}
+
+export function getPayslipPdf(
+  db: DB,
+  payslipId: number
+): { filename: string; data: Buffer } | null {
+  const row = db
+    .prepare('SELECT filename, data FROM payslip_files WHERE payslip_id = ?')
+    .get(payslipId) as { filename: string; data: Buffer } | undefined
+  return row ?? null
 }
 
 function validatePayslip(db: DB, input: PayslipInput): void {
@@ -121,8 +153,8 @@ export function createPayslip(db: DB, input: PayslipInput, opts: PayslipSaveOpti
         `INSERT INTO payslips
            (person_id, pay_date, period_start, period_end, employer, gross_cents, tax_cents,
             super_cents, super_extra_cents, hecs_cents, other_deductions_cents, net_cents,
-            pay_schedule_id, transaction_id, transaction_source, pdf_path, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            pay_schedule_id, transaction_id, transaction_source, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         input.personId,
@@ -140,7 +172,6 @@ export function createPayslip(db: DB, input: PayslipInput, opts: PayslipSaveOpti
         scheduleId,
         transactionId,
         source,
-        input.pdfPath || null,
         input.notes ?? null
       )
     return Number(info.lastInsertRowid)
@@ -163,8 +194,7 @@ export function updatePayslip(db: DB, id: number, patch: Partial<PayslipInput>):
     hecsCents: patch.hecsCents ?? current.hecsCents,
     otherDeductionsCents: patch.otherDeductionsCents ?? current.otherDeductionsCents,
     netCents: patch.netCents ?? current.netCents,
-    notes: patch.notes !== undefined ? patch.notes : current.notes,
-    pdfPath: patch.pdfPath !== undefined ? patch.pdfPath : current.pdfPath
+    notes: patch.notes !== undefined ? patch.notes : current.notes
   }
   validatePayslip(db, merged)
   db.transaction(() => {
@@ -173,7 +203,7 @@ export function updatePayslip(db: DB, id: number, patch: Partial<PayslipInput>):
       `UPDATE payslips SET person_id = ?, pay_date = ?, period_start = ?, period_end = ?,
          employer = ?, gross_cents = ?, tax_cents = ?, super_cents = ?, super_extra_cents = ?,
          hecs_cents = ?, other_deductions_cents = ?, net_cents = ?, pay_schedule_id = ?,
-         pdf_path = ?, notes = ? WHERE id = ?`
+         notes = ? WHERE id = ?`
     ).run(
       merged.personId,
       merged.payDate,
@@ -188,7 +218,6 @@ export function updatePayslip(db: DB, id: number, patch: Partial<PayslipInput>):
       Math.round(merged.otherDeductionsCents),
       Math.round(merged.netCents),
       scheduleId,
-      merged.pdfPath || null,
       merged.notes ?? null,
       id
     )
@@ -510,7 +539,7 @@ export function getIncomeSummary(db: DB, month: string): IncomeSummary {
   const events = pairedPayEvents(db, start, end)
   const unscheduledPayslips = db
     .prepare(
-      'SELECT * FROM payslips WHERE pay_schedule_id IS NULL AND pay_date >= ? AND pay_date < ? ORDER BY pay_date'
+      `${PAYSLIP_SELECT} WHERE p.pay_schedule_id IS NULL AND p.pay_date >= ? AND p.pay_date < ? ORDER BY p.pay_date`
     )
     .all(start, end)
     .map(rowToPayslip)

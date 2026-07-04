@@ -1,5 +1,6 @@
-import { dialog, ipcMain, type BrowserWindow } from 'electron'
+import { app, dialog, ipcMain, shell, type BrowserWindow } from 'electron'
 import { readFile, writeFile } from 'fs/promises'
+import { basename, join } from 'path'
 import type { Database as DB } from 'better-sqlite3'
 import type {
   AccountInput,
@@ -10,6 +11,7 @@ import type {
   PayScheduleInput,
   PayslipFilter,
   PayslipInput,
+  PayslipPatch,
   PayslipSaveOptions,
   RecurringRuleInput,
   TrackedBalanceKind,
@@ -85,14 +87,49 @@ export function registerIpcHandlers(db: DB, getWindow: () => BrowserWindow | nul
   handle('getPayeeSuggestions', () => tx.getPayeeSuggestions(db))
   handle('importTransactions', (req: ImportRequest) => tx.importTransactions(db, req))
 
+  // Reads the picked file's bytes so failures surface before anything is saved.
+  const readPdfSource = async (sourcePath: string): Promise<{ filename: string; data: Buffer }> => {
+    const data = await readFile(sourcePath)
+    if (data.length === 0) throw new Error('The chosen PDF file is empty')
+    return { filename: basename(sourcePath), data }
+  }
+
   handle('listPayslips', (filter: PayslipFilter) => payslips.listPayslips(db, filter ?? {}))
-  handle('createPayslip', (input: PayslipInput, opts: PayslipSaveOptions) =>
-    payslips.createPayslip(db, input, opts)
-  )
-  handle('updatePayslip', (id: number, patch: Partial<PayslipInput>) =>
-    payslips.updatePayslip(db, id, patch)
-  )
+  handle('createPayslip', async (input: PayslipInput, opts: PayslipSaveOptions) => {
+    const pdf = opts.pdfSourcePath ? await readPdfSource(opts.pdfSourcePath) : null
+    const slip = payslips.createPayslip(db, input, opts)
+    if (pdf) payslips.setPayslipPdf(db, slip.id, pdf.filename, pdf.data)
+    return payslips.getPayslip(db, slip.id)
+  })
+  handle('updatePayslip', async (id: number, patch: PayslipPatch) => {
+    const { pdfSourcePath, ...fields } = patch ?? {}
+    const pdf = pdfSourcePath ? await readPdfSource(pdfSourcePath) : null
+    payslips.updatePayslip(db, id, fields)
+    if (pdf) payslips.setPayslipPdf(db, id, pdf.filename, pdf.data)
+    else if (pdfSourcePath === null) payslips.removePayslipPdf(db, id)
+    return payslips.getPayslip(db, id)
+  })
   handle('deletePayslip', (id: number) => payslips.deletePayslip(db, id))
+  handle('pickPayslipPdf', async () => {
+    const win = getWindow()
+    if (!win) throw new Error('No window')
+    const res = await dialog.showOpenDialog(win, {
+      title: 'Attach payslip PDF',
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+      properties: ['openFile']
+    })
+    return { path: res.canceled || res.filePaths.length === 0 ? null : res.filePaths[0] }
+  })
+  handle('openPayslipPdf', async (id: number) => {
+    const pdf = payslips.getPayslipPdf(db, id)
+    if (!pdf) return { opened: false, error: 'No PDF attached to this payslip' }
+    // Extract to a temp file; the OS viewer can't read blobs out of SQLite.
+    const safeName = basename(pdf.filename).replace(/[^\w.\-() ]+/g, '_') || 'payslip.pdf'
+    const tempPath = join(app.getPath('temp'), `dollar-payslip-${id}-${safeName}`)
+    await writeFile(tempPath, pdf.data)
+    const error = await shell.openPath(tempPath)
+    return error ? { opened: false, error } : { opened: true }
+  })
   handle(
     'matchImportRowsToPayslips',
     (rows: { date: string; amountCents: number }[], personId: number) =>

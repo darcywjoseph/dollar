@@ -38,7 +38,20 @@ export function exportBackup(db: DB): BackupData {
     balanceAdjustments: db
       .prepare('SELECT * FROM balance_adjustments ORDER BY id')
       .all()
-      .map(rowToBalanceAdjustment)
+      .map(rowToBalanceAdjustment),
+    payslipFiles: (
+      db
+        .prepare('SELECT payslip_id, filename, data FROM payslip_files ORDER BY payslip_id')
+        .all() as {
+        payslip_id: number
+        filename: string
+        data: Buffer
+      }[]
+    ).map((r) => ({
+      payslipId: r.payslip_id,
+      filename: r.filename,
+      dataBase64: r.data.toString('base64')
+    }))
   }
 }
 
@@ -64,6 +77,7 @@ export function importBackup(db: DB, data: unknown): void {
   db.transaction(() => {
     db.prepare('DELETE FROM balance_adjustments').run()
     db.prepare('DELETE FROM tracked_balances').run()
+    db.prepare('DELETE FROM payslip_files').run()
     db.prepare('DELETE FROM payslips').run()
     db.prepare('DELETE FROM transactions').run()
     db.prepare('DELETE FROM pay_schedules').run()
@@ -183,8 +197,8 @@ export function importBackup(db: DB, data: unknown): void {
     const insPayslip = db.prepare(
       `INSERT INTO payslips (id, person_id, pay_date, period_start, period_end, employer, gross_cents, tax_cents,
          super_cents, super_extra_cents, hecs_cents, other_deductions_cents, net_cents,
-         pay_schedule_id, transaction_id, transaction_source, pdf_path, notes, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         pay_schedule_id, transaction_id, transaction_source, notes, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     for (const p of d.payslips ?? []) {
       insPayslip.run(
@@ -204,11 +218,16 @@ export function importBackup(db: DB, data: unknown): void {
         p.payScheduleId,
         p.transactionId,
         p.transactionSource,
-        p.pdfPath,
         p.notes,
         p.createdAt
       )
     }
+
+    const insPayslipFile = db.prepare(
+      'INSERT INTO payslip_files (payslip_id, filename, data) VALUES (?, ?, ?)'
+    )
+    for (const f of d.payslipFiles ?? [])
+      insPayslipFile.run(f.payslipId, f.filename, Buffer.from(f.dataBase64, 'base64'))
 
     const insBalance = db.prepare(
       'INSERT INTO tracked_balances (id, person_id, kind, starting_cents, starting_date) VALUES (?, ?, ?, ?, ?)'

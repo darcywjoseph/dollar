@@ -147,6 +147,14 @@ const MIGRATIONS: string[] = [
     note TEXT
   );
   CREATE INDEX idx_bal_adj_person_kind ON balance_adjustments(person_id, kind);
+  `,
+  // v3 — payslip PDFs stored inside the database (payslips.pdf_path is retired)
+  `
+  CREATE TABLE payslip_files (
+    payslip_id INTEGER PRIMARY KEY REFERENCES payslips(id) ON DELETE CASCADE,
+    filename TEXT NOT NULL,
+    data BLOB NOT NULL
+  );
   `
 ]
 

@@ -44,6 +44,11 @@ export default function PayslipModal({
   const [other, setOther] = useState(payslip ? toField(payslip.otherDeductionsCents) : '')
   const [net, setNet] = useState(payslip ? toField(payslip.netCents) : '')
   const [notes, setNotes] = useState(payslip?.notes ?? '')
+  // 'unchanged' keeps whatever is stored; 'attach' reads a new file on save;
+  // 'remove' deletes the stored PDF on save.
+  const [pdf, setPdf] = useState<
+    { kind: 'unchanged' } | { kind: 'attach'; path: string } | { kind: 'remove' }
+  >({ kind: 'unchanged' })
   const [accountId, setAccountId] = useState<number | ''>(() => {
     const own = activeAccounts.find((a) => a.personId === personId)
     return own?.id ?? activeAccounts[0]?.id ?? ''
@@ -101,6 +106,30 @@ export default function PayslipModal({
     }
   }
 
+  const shownPdfName =
+    pdf.kind === 'attach'
+      ? (pdf.path.split(/[\\/]/).pop() ?? pdf.path)
+      : pdf.kind === 'remove'
+        ? null
+        : (payslip?.pdfFilename ?? null)
+
+  const attachPdf = async (): Promise<void> => {
+    try {
+      const res = await api.pickPayslipPdf()
+      if (res.path) setPdf({ kind: 'attach', path: res.path })
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    }
+  }
+
+  const clearPdf = (): void => {
+    // Cancelling a fresh pick falls back to the stored PDF; clearing the
+    // stored PDF marks it for removal on save.
+    if (pdf.kind === 'attach' && payslip?.pdfFilename) setPdf({ kind: 'unchanged' })
+    else if (payslip?.pdfFilename) setPdf({ kind: 'remove' })
+    else setPdf({ kind: 'unchanged' })
+  }
+
   const save = async (linkTransactionId?: number | null): Promise<void> => {
     const input = buildInput()
     if (!input) return
@@ -111,13 +140,21 @@ export default function PayslipModal({
     setSaving(true)
     try {
       if (payslip) {
-        await api.updatePayslip(payslip.id, input)
+        await api.updatePayslip(payslip.id, {
+          ...input,
+          ...(pdf.kind === 'attach'
+            ? { pdfSourcePath: pdf.path }
+            : pdf.kind === 'remove'
+              ? { pdfSourcePath: null }
+              : {})
+        })
         toast('Payslip updated', 'success')
       } else {
         await api.createPayslip(input, {
           accountId,
           categoryId: salaryCategory?.id ?? null,
-          linkTransactionId: linkTransactionId ?? null
+          linkTransactionId: linkTransactionId ?? null,
+          pdfSourcePath: pdf.kind === 'attach' ? pdf.path : null
         })
         toast(
           linkTransactionId != null
@@ -300,6 +337,35 @@ export default function PayslipModal({
             <label className="label">Notes (optional)</label>
             <input className="input" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
+        </div>
+
+        <div className="flex items-center gap-2 text-sm">
+          <Button type="button" onClick={attachPdf}>
+            📎 {shownPdfName ? 'Replace PDF' : 'Attach PDF'}
+          </Button>
+          {shownPdfName && (
+            <>
+              <span
+                className="max-w-xs truncate text-slate-500 dark:text-slate-400"
+                title={shownPdfName}
+              >
+                {shownPdfName}
+              </span>
+              <button
+                type="button"
+                className="text-slate-400 hover:text-red-500"
+                aria-label="Remove attached PDF"
+                onClick={clearPdf}
+              >
+                ×
+              </button>
+            </>
+          )}
+          {shownPdfName && (
+            <span className="text-xs text-slate-400 dark:text-slate-500">
+              stored inside your dollar data file on save
+            </span>
+          )}
         </div>
 
         {mismatchCents != null && mismatchCents !== 0 && (

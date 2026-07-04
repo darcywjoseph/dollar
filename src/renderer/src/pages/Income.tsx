@@ -89,6 +89,15 @@ function PayslipsTab(): React.JSX.Element {
     load()
   }, [load])
 
+  const openPdf = async (slip: Payslip): Promise<void> => {
+    try {
+      const res = await api.openPayslipPdf(slip.id)
+      if (!res.opened) toast(res.error ?? 'Could not open the PDF', 'error')
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    }
+  }
+
   const remove = async (slip: Payslip): Promise<void> => {
     const ok = await confirm({
       title: 'Delete this payslip?',
@@ -260,6 +269,16 @@ function PayslipsTab(): React.JSX.Element {
                       <Money cents={s.netCents} fmt={fmt} />
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                      {s.pdfFilename && (
+                        <Button
+                          variant="ghost"
+                          aria-label="Open attached PDF"
+                          title="Open attached PDF"
+                          onClick={() => openPdf(s)}
+                        >
+                          📎
+                        </Button>
+                      )}
                       <Button variant="ghost" onClick={() => setEditing(s)}>
                         Edit
                       </Button>

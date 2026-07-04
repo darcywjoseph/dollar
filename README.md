@@ -1,6 +1,6 @@
 # dollar
 
-A local and offline budget tool for designed for two people to track savings together, either per-person or jointly. Users can see a month-by-month forecast of finances through to the end of year.
+A local and offline budgeting tool designed for two people to track savings together, either per-person or jointly. Users can see a month-by-month forecast of finances through to the end of year.
 
 Built with:
 - Electron

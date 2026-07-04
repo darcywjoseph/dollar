@@ -2,11 +2,19 @@ import React from 'react'
 import { useApp } from '../appContext'
 
 export type Page =
-  'dashboard' | 'transactions' | 'budgets' | 'goals' | 'forecast' | 'reports' | 'settings'
+  | 'dashboard'
+  | 'transactions'
+  | 'income'
+  | 'budgets'
+  | 'goals'
+  | 'forecast'
+  | 'reports'
+  | 'settings'
 
 const NAV: { id: Page; label: string; icon: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: '◧' },
   { id: 'transactions', label: 'Transactions', icon: '⇄' },
+  { id: 'income', label: 'Income', icon: '⤓' },
   { id: 'budgets', label: 'Budgets', icon: '◔' },
   { id: 'goals', label: 'Goals', icon: '◎' },
   { id: 'forecast', label: 'Forecast', icon: '↗' },

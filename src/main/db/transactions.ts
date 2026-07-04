@@ -102,10 +102,16 @@ export function updateTransaction(
 
 export function deleteTransactions(db: DB, ids: number[]): number {
   if (ids.length === 0) return 0
+  const unlinkPayslip = db.prepare(
+    "UPDATE payslips SET transaction_id = NULL, transaction_source = 'none' WHERE transaction_id = ?"
+  )
   const del = db.prepare('DELETE FROM transactions WHERE id = ?')
   let n = 0
   db.transaction(() => {
-    for (const id of ids) n += del.run(id).changes
+    for (const id of ids) {
+      unlinkPayslip.run(id)
+      n += del.run(id).changes
+    }
   })()
   return n
 }

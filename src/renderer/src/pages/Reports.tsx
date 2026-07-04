@@ -98,7 +98,7 @@ export default function Reports(): React.JSX.Element {
             [
               ['summary', 'Monthly summary'],
               ['categories', 'Categories over time'],
-              ['people', 'Person comparison']
+              ['people', 'Per-person']
             ] as [Tab, string][]
           ).map(([t, label]) => (
             <button

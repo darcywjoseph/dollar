@@ -6,7 +6,14 @@ import { BrowserWindow } from 'electron'
 import { mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import type { Database as DB } from 'better-sqlite3'
-import { addMonthKey, currentMonthKey, monthRange, todayISO, addDaysISO } from '@shared/dates'
+import {
+  addMonthKey,
+  currentMonthKey,
+  monthKeyOf,
+  monthRange,
+  todayISO,
+  addDaysISO
+} from '@shared/dates'
 import { parseAmountToCents } from '@shared/money'
 import { parseDateFlexible } from '@shared/importUtils'
 import * as core from './db/core'
@@ -16,6 +23,8 @@ import * as budgets from './db/budgets'
 import * as goals from './db/goals'
 import * as analytics from './db/analytics'
 import * as backup from './db/backup'
+import * as payslips from './db/payslips'
+import * as income from './db/income'
 
 function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(`assertion failed: ${msg}`)
@@ -176,6 +185,184 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
   })
   assert(gp.length === 1 && gp[0].currentCents === 500000, 'goal progress from linked account')
 
+  // --- payslips & expected pay ---
+  const schedules = payslips.createPaySchedule(db, {
+    personId: 1,
+    name: 'Acme fortnightly',
+    frequency: 'biweekly',
+    anchorDate: addDaysISO(todayISO(), -28),
+    expectedNetCents: 380000,
+    accountId: acct1.id
+  })
+  assert(schedules.length === 1, 'pay schedule created')
+  assert(
+    payslips.getIncomeSummary(db, nowMonth).events.length >= 2,
+    'expected pay events expand for the month'
+  )
+
+  const txBeforeSlip = tx.listTransactions(db, {}).total
+  const slip = payslips.createPayslip(
+    db,
+    {
+      personId: 1,
+      payDate: addDaysISO(todayISO(), -14),
+      employer: 'Acme Corp',
+      grossCents: 500000,
+      taxCents: 100000,
+      superCents: 57500,
+      superExtraCents: 5000,
+      hecsCents: 20000,
+      otherDeductionsCents: 0,
+      netCents: 375000
+    },
+    { accountId: acct1.id, categoryId: salary.id }
+  )
+  assert(
+    slip.transactionId != null && slip.transactionSource === 'created',
+    'payslip creates its ledger transaction'
+  )
+  assert(slip.payScheduleId === schedules[0].id, 'payslip auto-matched to schedule')
+  assert(tx.listTransactions(db, {}).total === txBeforeSlip + 1, 'exactly one ledger row added')
+
+  const slipMonth = monthKeyOf(slip.payDate, 1)
+  const slipEvent = payslips
+    .getIncomeSummary(db, slipMonth)
+    .events.find((e) => e.payslipId === slip.id)
+  assert(
+    slipEvent?.status === 'received' && slipEvent.varianceCents === 375000 - 380000,
+    `expected-vs-actual variance (got ${JSON.stringify(slipEvent)})`
+  )
+
+  // CSV rows matching the payslip's net pay are flagged for exclusion
+  const rowMatches = payslips.matchImportRowsToPayslips(
+    db,
+    [
+      { date: addDaysISO(slip.payDate, 1), amountCents: 375000 },
+      { date: slip.payDate, amountCents: 12345 }
+    ],
+    1
+  )
+  assert(
+    rowMatches[0] === slip.id && rowMatches[1] === null,
+    'import rows match payslip net pay only'
+  )
+
+  // Reverse order: bank deposit imported first, payslip linked to it
+  const bankTx = tx.createTransaction(db, {
+    date: todayISO(),
+    amountCents: 390000,
+    payee: 'GLOBEX SALARY',
+    categoryId: null,
+    accountId: acct2.id,
+    personId: 2
+  })
+  assert(
+    payslips.findBankMatchesForPayslip(db, 2, 390000, todayISO()).some((t) => t.id === bankTx.id),
+    'existing bank deposit found for new payslip'
+  )
+  const txBeforeLink = tx.listTransactions(db, {}).total
+  const linked = payslips.createPayslip(
+    db,
+    {
+      personId: 2,
+      payDate: todayISO(),
+      employer: 'Globex',
+      grossCents: 520000,
+      taxCents: 110000,
+      superCents: 59800,
+      superExtraCents: 0,
+      hecsCents: 0,
+      otherDeductionsCents: 20000,
+      netCents: 390000
+    },
+    { accountId: acct2.id, categoryId: salary.id, linkTransactionId: bankTx.id }
+  )
+  assert(
+    linked.transactionSource === 'linked' && tx.listTransactions(db, {}).total === txBeforeLink,
+    'linking adopts the existing transaction instead of creating one'
+  )
+  payslips.deletePayslip(db, linked.id)
+  assert(
+    tx.listTransactions(db, {}).total === txBeforeLink,
+    'deleting a linked payslip keeps the bank transaction'
+  )
+
+  // Deleting a payslip-created slip removes its ledger row too
+  const throwaway = payslips.createPayslip(
+    db,
+    {
+      personId: 2,
+      payDate: todayISO(),
+      employer: 'One-off',
+      grossCents: 150000,
+      taxCents: 30000,
+      superCents: 17250,
+      superExtraCents: 0,
+      hecsCents: 0,
+      otherDeductionsCents: 0,
+      netCents: 120000
+    },
+    { accountId: acct2.id, categoryId: salary.id }
+  )
+  const pdfBytes = Buffer.from('%PDF-1.4 smoke test payslip')
+  payslips.setPayslipPdf(db, throwaway.id, 'one-off-payslip.pdf', pdfBytes)
+  assert(
+    payslips.getPayslip(db, throwaway.id).pdfFilename === 'one-off-payslip.pdf',
+    'pdf filename surfaces on the payslip'
+  )
+  const storedPdf = payslips.getPayslipPdf(db, throwaway.id)
+  assert(storedPdf != null && storedPdf.data.equals(pdfBytes), 'pdf bytes roundtrip through sqlite')
+  payslips.removePayslipPdf(db, throwaway.id)
+  assert(payslips.getPayslip(db, throwaway.id).pdfFilename === null, 'pdf can be detached')
+  payslips.setPayslipPdf(db, throwaway.id, 'one-off-payslip.pdf', pdfBytes)
+  const txBeforeDelete = tx.listTransactions(db, {}).total
+  payslips.deletePayslip(db, throwaway.id)
+  assert(
+    payslips.getPayslipPdf(db, throwaway.id) === null,
+    'deleting a payslip cascades to its stored pdf'
+  )
+  // leave a PDF on the surviving payslip so the backup roundtrip covers it
+  payslips.setPayslipPdf(db, slip.id, 'acme-payslip.pdf', pdfBytes)
+  assert(
+    tx.listTransactions(db, {}).total === txBeforeDelete - 1,
+    'deleting a created payslip removes its ledger row'
+  )
+
+  // --- super & HECS balances, FY report ---
+  income.setTrackedBalance(db, 1, 'super', 10000000, slip.payDate)
+  let panels = income.createBalanceAdjustment(db, {
+    personId: 1,
+    kind: 'super',
+    date: todayISO(),
+    amountCents: -50000,
+    note: 'market dip'
+  })
+  const superPanel = panels.find((p) => p.personId === 1 && p.kind === 'super')!
+  assert(
+    superPanel.currentCents === 10000000 + 62500 - 50000,
+    `super balance math (got ${superPanel.currentCents})`
+  )
+  income.setTrackedBalance(db, 1, 'hecs', 5000000, slip.payDate)
+  panels = income.createBalanceAdjustment(db, {
+    personId: 1,
+    kind: 'hecs',
+    date: todayISO(),
+    amountCents: 100000,
+    note: 'Indexation'
+  })
+  const hecsPanel = panels.find((p) => p.personId === 1 && p.kind === 'hecs')!
+  assert(
+    hecsPanel.currentCents === 5000000 - 20000 + 100000,
+    `HECS paydown math (got ${hecsPanel.currentCents})`
+  )
+  const fy = income.getFinancialYearIncome(db, income.fyStartYearOf(slip.payDate), 1)
+  const fyMe = fy.perPerson.find((p) => p.personId === 1)!
+  assert(
+    fyMe.grossCents === 500000 && fyMe.hecsCents === 20000 && fyMe.netCents === 375000,
+    'financial-year totals from payslips'
+  )
+  results.payslips = { variance: slipEvent.varianceCents, superBalance: superPanel.currentCents }
+
   // --- analytics ---
   const dash = analytics.getDashboard(db, nowMonth, null)
   assert(dash.incomeCents > 0 && dash.spendingCents > 0, 'dashboard totals')
@@ -185,6 +372,15 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
   const forecast = analytics.getForecast(db, 3)
   assert(forecast.months.length === 12, 'forecast months')
   assert(forecast.variableAverages.length > 0, 'variable averages computed')
+  assert(forecast.scheduledPersonIds.includes(1), 'scheduled person flagged in forecast')
+  assert(
+    !forecast.variableAverages.some((v) => v.personId === 1 && v.categoryId === salary.id),
+    'schedule supersedes salary trailing average'
+  )
+  assert(
+    forecast.variableAverages.some((v) => v.personId === 2 && v.categoryId === salary.id),
+    'unscheduled person keeps salary trailing average'
+  )
   const report = analytics.getYearReport(db, forecast.year, null)
   assert(report.byMonth.length === 12, 'year report months')
   results.dashboard = {
@@ -199,6 +395,16 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
 
   // --- backup roundtrip ---
   const dump = backup.exportBackup(db)
+  // a v1 backup (pre-payslips) must still restore
+  const v1 = JSON.parse(JSON.stringify(dump))
+  v1.version = 1
+  delete v1.payslips
+  delete v1.paySchedules
+  delete v1.trackedBalances
+  delete v1.balanceAdjustments
+  delete v1.payslipFiles
+  backup.importBackup(db, v1)
+  assert(backup.exportBackup(db).payslips!.length === 0, 'v1 backup restores without payslips')
   backup.importBackup(db, JSON.parse(JSON.stringify(dump)))
   const after = backup.exportBackup(db)
   assert(
@@ -206,7 +412,28 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
     'backup roundtrip preserves transactions'
   )
   assert(after.budgets.length === dump.budgets.length, 'backup roundtrip preserves budgets')
-  results.backup = { transactions: after.transactions.length }
+  assert(
+    after.payslips!.length === dump.payslips!.length &&
+      after.paySchedules!.length === dump.paySchedules!.length &&
+      after.trackedBalances!.length === dump.trackedBalances!.length &&
+      after.balanceAdjustments!.length === dump.balanceAdjustments!.length,
+    'backup roundtrip preserves payslip tables'
+  )
+  assert(
+    after.payslipFiles!.length === 1 &&
+      after.payslipFiles![0].dataBase64 === dump.payslipFiles![0].dataBase64,
+    'backup roundtrip preserves attached pdf bytes'
+  )
+  const restoredPdf = payslips.getPayslipPdf(db, slip.id)
+  assert(
+    restoredPdf != null && restoredPdf.data.equals(pdfBytes),
+    'restored pdf matches the original bytes'
+  )
+  results.backup = {
+    transactions: after.transactions.length,
+    payslips: after.payslips!.length,
+    payslipFiles: after.payslipFiles!.length
+  }
 
   // --- boot the UI and screenshot key pages ---
   const win = createWindow()
@@ -232,6 +459,7 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
   }
   await capture(null, 'dashboard')
   await capture('transactions', 'transactions')
+  await capture('income', 'income')
   await capture('budgets', 'budgets')
   await capture('forecast', 'forecast')
   assert(crashed.length === 0, `renderer crashed: ${crashed.join(',')}`)

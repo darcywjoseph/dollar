@@ -109,6 +109,21 @@ export default function Forecast(): React.JSX.Element {
     for (const f of data.currentMonthRemainingRecurring)
       remRecCur.set(f.personId, { income: f.incomeCents, spending: f.spendingCents })
 
+    // Expected pay from schedules: remaining events this month, all events in
+    // future months (per-pay replacement of income averages).
+    const expPayByMonth = new Map<string, Map<number, number>>()
+    for (const f of data.expectedPayFlows) {
+      let m = expPayByMonth.get(f.month)
+      if (!m) {
+        m = new Map()
+        expPayByMonth.set(f.month, m)
+      }
+      m.set(f.personId, (m.get(f.personId) ?? 0) + f.netCents)
+    }
+    const expPayCur = new Map<number, number>()
+    for (const f of data.currentMonthRemainingExpectedPay)
+      expPayCur.set(f.personId, (expPayCur.get(f.personId) ?? 0) + f.netCents)
+
     const remainFrac = 1 - data.currentMonthElapsed
 
     interface MonthProj {
@@ -142,10 +157,12 @@ export default function Forecast(): React.JSX.Element {
       for (const pid of personIds) {
         const actualNet = data.currentMonthActual.netByPerson[String(pid)] ?? 0
         const rec = remRecCur.get(pid) ?? { income: 0, spending: 0 }
+        const expPay = expPayCur.get(pid) ?? 0
         const varAgg = adjusted.get(pid)!
-        const net = actualNet + rec.income - rec.spending + Math.round(varAgg.net * remainFrac)
+        const net =
+          actualNet + rec.income - rec.spending + expPay + Math.round(varAgg.net * remainFrac)
         byP.set(pid, net)
-        income += rec.income + Math.round(varAgg.income * remainFrac)
+        income += rec.income + expPay + Math.round(varAgg.income * remainFrac)
         spending += rec.spending + Math.round(varAgg.spending * remainFrac)
       }
       rows.push({
@@ -165,9 +182,10 @@ export default function Forecast(): React.JSX.Element {
       let spending = 0
       for (const pid of personIds) {
         const rec = recurringByMonth.get(m)?.get(pid) ?? { income: 0, spending: 0 }
+        const expPay = expPayByMonth.get(m)?.get(pid) ?? 0
         const varAgg = adjusted.get(pid)!
-        byP.set(pid, rec.income - rec.spending + varAgg.net)
-        income += rec.income + varAgg.income
+        byP.set(pid, rec.income - rec.spending + expPay + varAgg.net)
+        income += rec.income + expPay + varAgg.income
         spending += rec.spending + varAgg.spending
       }
       rows.push({
@@ -272,6 +290,8 @@ export default function Forecast(): React.JSX.Element {
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Known recurring items plus variable spending estimated from your trailing {windowMonths}
             -month average.
+            {data.scheduledPersonIds.length > 0 &&
+              ' Income for people with a pay schedule uses expected pay, replaced by actual payslips as they arrive.'}
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm">

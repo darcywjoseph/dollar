@@ -3,15 +3,19 @@ import type { BackupData } from '@shared/types'
 import {
   getSettingsMap,
   rowToAccount,
+  rowToBalanceAdjustment,
   rowToBudget,
   rowToCategory,
   rowToGoal,
+  rowToPaySchedule,
+  rowToPayslip,
   rowToPerson,
   rowToRule,
+  rowToTrackedBalance,
   rowToTransaction
 } from './helpers'
 
-export const BACKUP_VERSION = 1
+export const BACKUP_VERSION = 2
 
 export function exportBackup(db: DB): BackupData {
   return {
@@ -24,13 +28,37 @@ export function exportBackup(db: DB): BackupData {
     transactions: db.prepare('SELECT * FROM transactions ORDER BY id').all().map(rowToTransaction),
     recurringRules: db.prepare('SELECT * FROM recurring_rules ORDER BY id').all().map(rowToRule),
     budgets: db.prepare('SELECT * FROM budgets ORDER BY id').all().map(rowToBudget),
-    savingsGoals: db.prepare('SELECT * FROM savings_goals ORDER BY id').all().map(rowToGoal)
+    savingsGoals: db.prepare('SELECT * FROM savings_goals ORDER BY id').all().map(rowToGoal),
+    payslips: db.prepare('SELECT * FROM payslips ORDER BY id').all().map(rowToPayslip),
+    paySchedules: db.prepare('SELECT * FROM pay_schedules ORDER BY id').all().map(rowToPaySchedule),
+    trackedBalances: db
+      .prepare('SELECT * FROM tracked_balances ORDER BY id')
+      .all()
+      .map(rowToTrackedBalance),
+    balanceAdjustments: db
+      .prepare('SELECT * FROM balance_adjustments ORDER BY id')
+      .all()
+      .map(rowToBalanceAdjustment),
+    payslipFiles: (
+      db
+        .prepare('SELECT payslip_id, filename, data FROM payslip_files ORDER BY payslip_id')
+        .all() as {
+        payslip_id: number
+        filename: string
+        data: Buffer
+      }[]
+    ).map((r) => ({
+      payslipId: r.payslip_id,
+      filename: r.filename,
+      dataBase64: r.data.toString('base64')
+    }))
   }
 }
 
 export function importBackup(db: DB, data: unknown): void {
   const d = data as BackupData
-  if (!d || typeof d !== 'object' || d.version !== BACKUP_VERSION) {
+  // v1 backups predate payslips; their new arrays default to empty below.
+  if (!d || typeof d !== 'object' || (d.version !== 1 && d.version !== BACKUP_VERSION)) {
     throw new Error('Not a valid dollar backup file')
   }
   for (const key of [
@@ -47,7 +75,12 @@ export function importBackup(db: DB, data: unknown): void {
   if (d.people.length !== 2) throw new Error('Backup must contain exactly two people')
 
   db.transaction(() => {
+    db.prepare('DELETE FROM balance_adjustments').run()
+    db.prepare('DELETE FROM tracked_balances').run()
+    db.prepare('DELETE FROM payslip_files').run()
+    db.prepare('DELETE FROM payslips').run()
     db.prepare('DELETE FROM transactions').run()
+    db.prepare('DELETE FROM pay_schedules').run()
     db.prepare('DELETE FROM budgets').run()
     db.prepare('DELETE FROM savings_goals').run()
     db.prepare('DELETE FROM recurring_rules').run()
@@ -142,6 +175,71 @@ export function importBackup(db: DB, data: unknown): void {
         g.createdAt
       )
     }
+
+    const insSchedule = db.prepare(
+      `INSERT INTO pay_schedules (id, person_id, name, frequency, anchor_date, expected_net_cents, expected_gross_cents, account_id, active)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    for (const s of d.paySchedules ?? []) {
+      insSchedule.run(
+        s.id,
+        s.personId,
+        s.name,
+        s.frequency,
+        s.anchorDate,
+        s.expectedNetCents,
+        s.expectedGrossCents,
+        s.accountId,
+        s.active ? 1 : 0
+      )
+    }
+
+    const insPayslip = db.prepare(
+      `INSERT INTO payslips (id, person_id, pay_date, period_start, period_end, employer, gross_cents, tax_cents,
+         super_cents, super_extra_cents, hecs_cents, other_deductions_cents, net_cents,
+         pay_schedule_id, transaction_id, transaction_source, notes, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    for (const p of d.payslips ?? []) {
+      insPayslip.run(
+        p.id,
+        p.personId,
+        p.payDate,
+        p.periodStart,
+        p.periodEnd,
+        p.employer,
+        p.grossCents,
+        p.taxCents,
+        p.superCents,
+        p.superExtraCents,
+        p.hecsCents,
+        p.otherDeductionsCents,
+        p.netCents,
+        p.payScheduleId,
+        p.transactionId,
+        p.transactionSource,
+        p.notes,
+        p.createdAt
+      )
+    }
+
+    const insPayslipFile = db.prepare(
+      'INSERT INTO payslip_files (payslip_id, filename, data) VALUES (?, ?, ?)'
+    )
+    for (const f of d.payslipFiles ?? [])
+      insPayslipFile.run(f.payslipId, f.filename, Buffer.from(f.dataBase64, 'base64'))
+
+    const insBalance = db.prepare(
+      'INSERT INTO tracked_balances (id, person_id, kind, starting_cents, starting_date) VALUES (?, ?, ?, ?, ?)'
+    )
+    for (const b of d.trackedBalances ?? [])
+      insBalance.run(b.id, b.personId, b.kind, b.startingCents, b.startingDate)
+
+    const insAdj = db.prepare(
+      'INSERT INTO balance_adjustments (id, person_id, kind, date, amount_cents, note) VALUES (?, ?, ?, ?, ?, ?)'
+    )
+    for (const a of d.balanceAdjustments ?? [])
+      insAdj.run(a.id, a.personId, a.kind, a.date, a.amountCents, a.note)
 
     const insSetting = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)')
     for (const [k, v] of Object.entries(d.settings ?? {})) insSetting.run(k, String(v))

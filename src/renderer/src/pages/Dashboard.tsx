@@ -86,6 +86,11 @@ export default function Dashboard({
               label="Income this month"
               value={fmt(data.incomeCents)}
               accent="text-emerald-700 dark:text-emerald-400"
+              note={
+                data.expectedIncomeRemainingCents > 0
+                  ? `+ ${fmt(data.expectedIncomeRemainingCents)} expected`
+                  : undefined
+              }
             />
             <StatCard
               label="Spending this month"
@@ -211,16 +216,19 @@ export default function Dashboard({
 function StatCard({
   label,
   value,
-  accent
+  accent,
+  note
 }: {
   label: string
   value: string
   accent: string
+  note?: string
 }): React.JSX.Element {
   return (
     <div className="card p-5">
       <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</div>
       <div className={`mt-1 text-2xl font-semibold tabular-nums ${accent}`}>{value}</div>
+      {note && <div className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{note}</div>}
     </div>
   )
 }

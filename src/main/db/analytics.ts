@@ -1,6 +1,7 @@
 import type { Database as DB } from 'better-sqlite3'
 import type {
   DashboardSummary,
+  ExpectedPayFlow,
   ForecastActualMonth,
   ForecastData,
   MonthPoint,
@@ -20,6 +21,7 @@ import {
 } from '@shared/dates'
 import { getSettings, monthKeySql } from './helpers'
 import { expandRecurringFlows, upcomingInstances } from './recurring'
+import { expandPayEvents, listPaySchedules, pairedPayEvents } from './payslips'
 
 // Dashboard
 
@@ -100,11 +102,17 @@ export function getDashboard(db: DB, month: string, personId: number | null): Da
     )
     .get(...personParams) as { balance: number }
 
+  // Expected pay events later this month that have no payslip yet.
+  const expectedIncomeRemainingCents = pairedPayEvents(db, start, end)
+    .filter((e) => e.status === 'upcoming' && (personId == null || e.personId === personId))
+    .reduce((s, e) => s + e.expectedNetCents, 0)
+
   return {
     incomeCents: totals.income,
     spendingCents: totals.spending,
     netCents: totals.income - totals.spending,
     savingsBalanceCents: savings.balance,
+    expectedIncomeRemainingCents,
     byCategory,
     budgetVsActual,
     trend,
@@ -162,17 +170,37 @@ export function getForecast(db: DB, windowMonths: number): ForecastData {
     spendingCents: 0
   }
 
+  // People with an active pay schedule get their income projected from the
+  // schedule instead of trailing averages.
+  const scheduledPersonIds = [
+    ...new Set(
+      listPaySchedules(db)
+        .filter((s) => s.active)
+        .map((s) => s.personId)
+    )
+  ]
+
   // Trailing-average variable (non-recurring) flows per person+category.
+  // Scheduled people's income is excluded — expected pay supersedes it.
   const winMonths = lastNMonthKeys(nowMonth, win)
   const winStart = monthRange(winMonths[0], firstDay).start
+  const schedPlaceholders = scheduledPersonIds.map(() => '?').join(', ')
+  const schedExclusion = scheduledPersonIds.length
+    ? `AND NOT (t.person_id IN (${schedPlaceholders})
+           AND (c.type = 'income' OR (t.category_id IS NULL AND t.amount_cents > 0)))`
+    : ''
   const varRows = db
     .prepare(
-      `SELECT person_id, category_id, SUM(amount_cents) AS total
-       FROM transactions
-       WHERE is_recurring_instance = 0 AND date >= ? AND date < ?
-       GROUP BY person_id, category_id`
+      `SELECT t.person_id, t.category_id, SUM(t.amount_cents) AS total
+       FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
+       WHERE t.is_recurring_instance = 0 AND t.date >= ? AND t.date < ? ${schedExclusion}
+       GROUP BY t.person_id, t.category_id`
     )
-    .all(winStart, curStart) as { person_id: number; category_id: number | null; total: number }[]
+    .all(winStart, curStart, ...scheduledPersonIds) as {
+    person_id: number
+    category_id: number | null
+    total: number
+  }[]
   const variableAverages: VariableAverage[] = varRows.map((r) => ({
     personId: r.person_id,
     categoryId: r.category_id,
@@ -189,6 +217,38 @@ export function getForecast(db: DB, windowMonths: number): ForecastData {
   const currentMonthRemainingRecurring: RecurringMonthFlow[] = flows.filter(
     (f) => f.month === nowMonth
   )
+
+  // Expected pay: per-pay replacement. In the current month only events that
+  // are still ahead and have no payslip count (entered payslips are already
+  // in currentMonthActual); future months take every scheduled event.
+  const currentMonthRemainingExpectedPay: ExpectedPayFlow[] = []
+  {
+    const byPerson = new Map<number, number>()
+    for (const e of pairedPayEvents(db, curStart, curEnd)) {
+      if (e.status !== 'upcoming') continue
+      byPerson.set(e.personId, (byPerson.get(e.personId) ?? 0) + e.expectedNetCents)
+    }
+    for (const [personId, netCents] of byPerson) {
+      currentMonthRemainingExpectedPay.push({ month: nowMonth, personId, netCents })
+    }
+  }
+  const expectedPayFlows: ExpectedPayFlow[] = []
+  {
+    const totals = new Map<string, number>()
+    for (const s of listPaySchedules(db)) {
+      if (!s.active) continue
+      for (const e of expandPayEvents(s, curEnd, yearEnd)) {
+        const key = `${monthKeyOf(e.date, firstDay)}|${s.personId}`
+        totals.set(key, (totals.get(key) ?? 0) + e.expectedNetCents)
+      }
+    }
+    for (const [key, netCents] of totals) {
+      const [month, pid] = key.split('|')
+      if (compareISO(month, nowMonth) > 0) {
+        expectedPayFlows.push({ month, personId: Number(pid), netCents })
+      }
+    }
+  }
 
   // Elapsed fraction of the current budget month.
   const msPerDay = 86400000
@@ -221,6 +281,9 @@ export function getForecast(db: DB, windowMonths: number): ForecastData {
     currentMonthRemainingRecurring,
     variableAverages,
     recurringFlows,
+    expectedPayFlows,
+    currentMonthRemainingExpectedPay,
+    scheduledPersonIds,
     balancesByOwner,
     windowMonths: win
   }

@@ -1,5 +1,9 @@
 # dollar
 
+[![CI](https://github.com/darcywjoseph/dollar/actions/workflows/ci.yml/badge.svg)](https://github.com/darcywjoseph/dollar/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/github/package-json/v/darcywjoseph/dollar)](https://github.com/darcywjoseph/dollar/blob/main/package.json)
+[![License: MIT](https://img.shields.io/github/license/darcywjoseph/dollar)](LICENSE)
+
 A local and offline budgeting tool designed for two people to track savings together, either per-person or jointly. Users can see a month-by-month forecast of finances through to the end of year.
 
 Built with:

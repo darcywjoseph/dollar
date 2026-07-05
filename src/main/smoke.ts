@@ -120,6 +120,10 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
     )
     assert(c.date === '2026-04-18' && c.amountCents === -5313, `${label}: overdrawn (DR) balance`)
     assert(d.date === '2026-04-19' && d.amountCents === 33163, `${label}: deposit from DR balance`)
+    assert(
+      parsed.openingBalanceCents === 0 && parsed.closingBalanceCents === 30000,
+      `${label}: opening/closing balances (got ${parsed.openingBalanceCents}/${parsed.closingBalanceCents})`
+    )
   }
   checkStatement(parseBankStatement(stmtLines), 'statement lines')
   // through a real PDF: exercises pdf.js text extraction end to end
@@ -130,15 +134,15 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
     'Account Number 067873 23355473',
     'Here is your account information and a list of transactions from 01/05/26-04/07/26.',
     'Date Transaction details Amount Balance',
-    '07 May 2026 Transfer from xxxx CommBank app $650.00 $650.00',
-    '09 May 2026 Transfer To Henley Beach Rentals -$1,300.00 -$650.00',
+    '07 May 2026 Transfer from xxxx CommBank app $650.00 $250.00',
+    '09 May 2026 Transfer To Henley Beach Rentals -$1,300.00 -$1,050.00',
     'CommBank App Rent',
     'Value Date: 10/05/2026',
-    '21 May 2026 CRUNCHY BITES ADELAIDE AU -$12.64 -$662.64',
+    '21 May 2026 CRUNCHY BITES ADELAIDE AU -$12.64 -$1,062.64',
     'Created 04/07/26 11:15pm (Sydney/Melbourne time)',
     'While this letter is accurate, we are not responsible for reliance on it.',
     'Date Transaction details Amount Balance',
-    '22 May 2026 Transfer from xxxx CommBank app $1,100.00 $437.36',
+    '22 May 2026 Transfer from xxxx CommBank app $1,100.00 $37.36',
     'Rent',
     'Any pending transactions have not been included in this list.',
     'This line is footer text that must not attach to a transaction.'
@@ -162,8 +166,13 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
   )
   assert(sc.amountCents === -1264, 'summary: negative balance row')
   assert(
-    sd.amountCents === 110000 && sd.description === 'Transfer from xx4246 CommBank app Rent',
+    sd.amountCents === 110000 && sd.description === 'Transfer from xxxx CommBank app Rent',
     `summary: footer text not attached (got ${JSON.stringify(sd)})`
+  )
+  assert(
+    // the account held -$400.00 before the period (first balance minus amount)
+    summary.openingBalanceCents === -40000 && summary.closingBalanceCents === 3736,
+    `summary: opening/closing balances (got ${summary.openingBalanceCents}/${summary.closingBalanceCents})`
   )
   results.statementPdf = 'ok'
 
@@ -255,7 +264,29 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
     `re-import is fully deduped (got ${JSON.stringify(r2)})`
   )
   assert(tx.listTransactions(db, {}).total === before + 3, 'import count')
-  results.import = { first: r1, second: r2 }
+
+  // --- reconcile against a statement closing balance ---
+  const balBefore = core.accountBalances(db).find((b) => b.accountId === acct1.id)!.balanceCents
+  const r3 = tx.importTransactions(db, {
+    rows,
+    accountId: acct1.id,
+    personId: 1,
+    reconcileBalanceCents: balBefore + 12345
+  })
+  assert(
+    r3.imported === 0 && r3.startingBalanceAdjustedCents === 12345,
+    `reconcile adjusts starting balance (got ${JSON.stringify(r3)})`
+  )
+  const balAfter = core.accountBalances(db).find((b) => b.accountId === acct1.id)!.balanceCents
+  assert(balAfter === balBefore + 12345, `reconciled balance (got ${balAfter})`)
+  const r4 = tx.importTransactions(db, {
+    rows,
+    accountId: acct1.id,
+    personId: 1,
+    reconcileBalanceCents: balBefore + 12345
+  })
+  assert(r4.startingBalanceAdjustedCents === 0, 'reconcile with matching balance is a no-op')
+  results.import = { first: r1, second: r2, reconciled: r3.startingBalanceAdjustedCents }
 
   // --- recurring rules ---
   const rules = recurring.createRecurring(db, {

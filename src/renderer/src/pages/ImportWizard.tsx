@@ -28,6 +28,8 @@ export default function ImportWizard({
   // set when the rows came from a PDF bank statement rather than a CSV
   const [statement, setStatement] = useState<StatementParseResult | null>(null)
   const [readingPdf, setReadingPdf] = useState(false)
+  // adjust the account's starting balance to match the statement's closing balance
+  const [reconcile, setReconcile] = useState(true)
 
   // mapping
   const [dateCol, setDateCol] = useState(-1)
@@ -216,7 +218,15 @@ export default function ImportWizard({
           payee: p.payee,
           categoryId: p.categoryId
         }))
-      const res = await api.importTransactions({ rows: payload, accountId, personId })
+      const res = await api.importTransactions({
+        rows: payload,
+        accountId,
+        personId,
+        reconcileBalanceCents:
+          reconcile && statement?.closingBalanceCents != null
+            ? statement.closingBalanceCents
+            : undefined
+      })
       setResult({ ...res, invalid: invalidCount, payslipExcluded: excludedCount })
       setStep('done')
       await onImported()
@@ -283,12 +293,33 @@ export default function ImportWizard({
       {step === 'map' && (
         <div className="space-y-5">
           {statement && (
-            <div className="rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
-              {statement.periodStart && statement.periodEnd
-                ? `Statement period ${formatDateDisplay(statement.periodStart)} – ${formatDateDisplay(statement.periodEnd)} · `
-                : ''}
-              {statement.transactions.length} transaction
-              {statement.transactions.length === 1 ? '' : 's'} found in the PDF
+            <div className="space-y-1.5 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+              <p>
+                {statement.periodStart && statement.periodEnd
+                  ? `Statement period ${formatDateDisplay(statement.periodStart)} – ${formatDateDisplay(statement.periodEnd)} · `
+                  : ''}
+                {statement.transactions.length} transaction
+                {statement.transactions.length === 1 ? '' : 's'} found in the PDF
+                {statement.closingBalanceCents != null
+                  ? ` · closing balance ${fmt(statement.closingBalanceCents)}`
+                  : ''}
+              </p>
+              {statement.closingBalanceCents != null && (
+                <label className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={reconcile}
+                    onChange={(e) => setReconcile(e.target.checked)}
+                  />
+                  <span>
+                    Set this account&apos;s balance to {fmt(statement.closingBalanceCents)} to match
+                    the statement (adjusts the account&apos;s starting balance to cover money it
+                    held before the statement period). Untick if the account already has newer
+                    transactions than this statement.
+                  </span>
+                </label>
+              )}
             </div>
           )}
           {statement && statement.warnings.length > 0 && (
@@ -502,6 +533,12 @@ export default function ImportWizard({
             {result.invalid > 0 && (
               <p className="mt-1 text-sm text-slate-500">
                 {result.invalid} rows could not be parsed and were left out.
+              </p>
+            )}
+            {(result.startingBalanceAdjustedCents ?? 0) !== 0 && (
+              <p className="mt-1 text-sm text-slate-500">
+                Starting balance adjusted by {fmt(result.startingBalanceAdjustedCents!)} so the
+                account matches the statement&apos;s closing balance.
               </p>
             )}
           </div>

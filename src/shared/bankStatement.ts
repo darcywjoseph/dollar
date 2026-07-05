@@ -166,6 +166,10 @@ export function parseBankStatement(rawLines: string[]): StatementParseResult {
   // Signed running balance; null until an OPENING BALANCE row (or first
   // completed row) anchors it.
   let balance: number | null = null
+  // Account balance before the first transaction / after the last one, when
+  // the statement lets us establish them (first wins / last wins).
+  let openingBalance: number | null = null
+  let closingBalance: number | null = null
   let pending: PendingRow | null = null
   // Last Transaction Summary row, still accepting follow-on description lines.
   let openSummary: StatementTransaction | null = null
@@ -200,9 +204,12 @@ export function parseBankStatement(rawLines: string[]): StatementParseResult {
       if (balance != null && newBalance - balance !== signed) {
         warn(`"${description}" (${date}): amount does not match the balance movement`)
       }
+      // The first row implies what the account held before the period.
+      if (openingBalance == null && balance == null) openingBalance = newBalance - signed
       openSummary = { date, amountCents: signed, description }
       transactions.push(openSummary)
       balance = newBalance
+      closingBalance = newBalance
       continue
     }
 
@@ -215,6 +222,7 @@ export function parseBankStatement(rawLines: string[]): StatementParseResult {
       const bal = rest.match(/^(\d[\d,]*\.\d{2}) (CR|DR)$/)
       balance = /^nil$/i.test(rest) ? 0 : bal ? balanceToCents(bal[1], bal[2]) : null
       if (balance == null) warn(`Could not read opening balance ("${rest}")`)
+      if (openingBalance == null) openingBalance = balance
       continue
     }
     if (/\bCLOSING BALANCE\b/i.test(line)) {
@@ -223,6 +231,7 @@ export function parseBankStatement(rawLines: string[]): StatementParseResult {
       if (bal && balance != null && balanceToCents(bal[1], bal[2]) !== balance) {
         warn('Closing balance does not match the running balance; some rows may be wrong')
       }
+      if (bal) closingBalance = balanceToCents(bal[1], bal[2])
       balance = null
       continue
     }
@@ -264,6 +273,7 @@ export function parseBankStatement(rawLines: string[]): StatementParseResult {
       warn(`"${description}": date ${pending.day}/${pending.month} is outside the statement period`)
       pending = null
       balance = newBalance
+      closingBalance = newBalance
       continue
     }
 
@@ -284,6 +294,7 @@ export function parseBankStatement(rawLines: string[]): StatementParseResult {
 
     transactions.push({ date, amountCents: signed, description })
     balance = newBalance
+    closingBalance = newBalance
     pending = null
   }
   flushPendingAsLost()
@@ -296,5 +307,12 @@ export function parseBankStatement(rawLines: string[]): StatementParseResult {
     }
   }
 
-  return { periodStart, periodEnd, transactions, warnings }
+  return {
+    periodStart,
+    periodEnd,
+    openingBalanceCents: openingBalance,
+    closingBalanceCents: closingBalance,
+    transactions,
+    warnings
+  }
 }

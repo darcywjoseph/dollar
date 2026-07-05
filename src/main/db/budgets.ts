@@ -1,7 +1,7 @@
 import type { Database as DB } from 'better-sqlite3'
 import type { BudgetGrid, BudgetRow } from '@shared/types'
 import { addMonthKey, lastNMonthKeys, monthRange } from '@shared/dates'
-import { getSettings, rowToBudget } from './helpers'
+import { getSettings, notTransferSql, rowToBudget } from './helpers'
 
 /** scope is 'joint' or a person id as string */
 function scopeToPersonId(scope: string): number | null {
@@ -17,7 +17,7 @@ export function getBudgetGrid(db: DB, month: string): BudgetGrid {
     .prepare(
       `SELECT category_id, person_id, -SUM(amount_cents) AS spent
        FROM transactions
-       WHERE amount_cents < 0 AND date >= ? AND date < ?
+       WHERE amount_cents < 0 AND date >= ? AND date < ? AND ${notTransferSql()}
        GROUP BY category_id, person_id`
     )
     .all(start, end) as { category_id: number | null; person_id: number; spent: number }[]

@@ -19,7 +19,7 @@ import {
   monthRange,
   todayISO
 } from '@shared/dates'
-import { getSettings, monthKeySql } from './helpers'
+import { getSettings, monthKeySql, notTransferSql } from './helpers'
 import { expandRecurringFlows, upcomingInstances } from './recurring'
 import { expandPayEvents, listPaySchedules, pairedPayEvents } from './payslips'
 
@@ -32,12 +32,13 @@ export function getDashboard(db: DB, month: string, personId: number | null): Da
 
   const personCond = personId != null ? 'AND person_id = ?' : ''
   const personParams = personId != null ? [personId] : []
+  const notTransfer = notTransferSql()
 
   const totals = db
     .prepare(
       `SELECT COALESCE(SUM(CASE WHEN amount_cents > 0 THEN amount_cents ELSE 0 END), 0) AS income,
               COALESCE(SUM(CASE WHEN amount_cents < 0 THEN -amount_cents ELSE 0 END), 0) AS spending
-       FROM transactions WHERE date >= ? AND date < ? ${personCond}`
+       FROM transactions WHERE date >= ? AND date < ? AND ${notTransfer} ${personCond}`
     )
     .get(start, end, ...personParams) as { income: number; spending: number }
 
@@ -45,7 +46,8 @@ export function getDashboard(db: DB, month: string, personId: number | null): Da
     db
       .prepare(
         `SELECT category_id, -SUM(amount_cents) AS spent
-         FROM transactions WHERE amount_cents < 0 AND date >= ? AND date < ? ${personCond}
+         FROM transactions
+         WHERE amount_cents < 0 AND date >= ? AND date < ? AND ${notTransfer} ${personCond}
          GROUP BY category_id ORDER BY spent DESC`
       )
       .all(start, end, ...personParams) as { category_id: number | null; spent: number }[]
@@ -77,7 +79,7 @@ export function getDashboard(db: DB, month: string, personId: number | null): Da
       `SELECT ${mk} AS m,
               COALESCE(SUM(CASE WHEN amount_cents > 0 THEN amount_cents ELSE 0 END), 0) AS income,
               COALESCE(SUM(CASE WHEN amount_cents < 0 THEN -amount_cents ELSE 0 END), 0) AS spending
-       FROM transactions WHERE date >= ? AND date < ? ${personCond}
+       FROM transactions WHERE date >= ? AND date < ? AND ${notTransfer} ${personCond}
        GROUP BY m ORDER BY m`
     )
     .all(trendStart, end, ...personParams) as { m: string; income: number; spending: number }[]
@@ -140,7 +142,7 @@ export function getForecast(db: DB, windowMonths: number): ForecastData {
       `SELECT ${mk} AS m, person_id,
               COALESCE(SUM(CASE WHEN amount_cents > 0 THEN amount_cents ELSE 0 END), 0) AS income,
               COALESCE(SUM(CASE WHEN amount_cents < 0 THEN -amount_cents ELSE 0 END), 0) AS spending
-       FROM transactions WHERE date >= ? AND date <= ?
+       FROM transactions WHERE date >= ? AND date <= ? AND ${notTransferSql()}
        GROUP BY m, person_id ORDER BY m`
     )
     .all(yearStart, today) as { m: string; person_id: number; income: number; spending: number }[]
@@ -193,7 +195,8 @@ export function getForecast(db: DB, windowMonths: number): ForecastData {
     .prepare(
       `SELECT t.person_id, t.category_id, SUM(t.amount_cents) AS total
        FROM transactions t LEFT JOIN categories c ON c.id = t.category_id
-       WHERE t.is_recurring_instance = 0 AND t.date >= ? AND t.date < ? ${schedExclusion}
+       WHERE t.is_recurring_instance = 0 AND t.date >= ? AND t.date < ?
+         AND ${notTransferSql('t')} ${schedExclusion}
        GROUP BY t.person_id, t.category_id`
     )
     .all(winStart, curStart, ...scheduledPersonIds) as {
@@ -303,13 +306,14 @@ export function getYearReport(db: DB, year: number, personId: number | null): Ye
 
   const personCond = personId != null ? 'AND person_id = ?' : ''
   const personParams = personId != null ? [personId] : []
+  const notTransfer = notTransferSql()
 
   const byMonthRows = db
     .prepare(
       `SELECT ${mk} AS m,
               COALESCE(SUM(CASE WHEN amount_cents > 0 THEN amount_cents ELSE 0 END), 0) AS income,
               COALESCE(SUM(CASE WHEN amount_cents < 0 THEN -amount_cents ELSE 0 END), 0) AS spending
-       FROM transactions WHERE date >= ? AND date < ? ${personCond}
+       FROM transactions WHERE date >= ? AND date < ? AND ${notTransfer} ${personCond}
        GROUP BY m`
     )
     .all(start, end, ...personParams) as { m: string; income: number; spending: number }[]
@@ -324,7 +328,8 @@ export function getYearReport(db: DB, year: number, personId: number | null): Ye
     db
       .prepare(
         `SELECT ${mk} AS m, category_id, -SUM(amount_cents) AS spent
-         FROM transactions WHERE amount_cents < 0 AND date >= ? AND date < ? ${personCond}
+         FROM transactions
+         WHERE amount_cents < 0 AND date >= ? AND date < ? AND ${notTransfer} ${personCond}
          GROUP BY m, category_id`
       )
       .all(start, end, ...personParams) as {
@@ -340,7 +345,7 @@ export function getYearReport(db: DB, year: number, personId: number | null): Ye
         `SELECT ${mk} AS m, person_id,
                 COALESCE(SUM(CASE WHEN amount_cents > 0 THEN amount_cents ELSE 0 END), 0) AS income,
                 COALESCE(SUM(CASE WHEN amount_cents < 0 THEN -amount_cents ELSE 0 END), 0) AS spending
-         FROM transactions WHERE date >= ? AND date < ?
+         FROM transactions WHERE date >= ? AND date < ? AND ${notTransfer}
          GROUP BY m, person_id`
       )
       .all(start, end) as { m: string; person_id: number; income: number; spending: number }[]

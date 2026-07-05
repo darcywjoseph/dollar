@@ -19,7 +19,7 @@ export interface Account {
   archived: boolean
 }
 
-export type CategoryType = 'expense' | 'income'
+export type CategoryType = 'expense' | 'income' | 'transfer'
 
 export interface Category {
   id: number
@@ -228,6 +228,17 @@ export interface ImportResult {
   skipped: number
   /** Delta applied to the account's starting balance by reconciliation */
   startingBalanceAdjustedCents?: number
+  /** Inserted transactions that still have no category, for post-import triage */
+  uncategorized: Transaction[]
+}
+
+/** A suggested category for one transaction in the categorise flow. */
+export interface CategorySuggestion {
+  transactionId: number
+  categoryId: number
+  reason: 'history' | 'transfer'
+  /** human-readable justification, e.g. the matching counter-leg */
+  detail: string
 }
 
 /** One row parsed out of a PDF bank statement. */
@@ -596,6 +607,8 @@ export interface LedgerApi {
   updateTransaction(id: number, patch: Partial<TransactionInput>): Promise<Transaction>
   deleteTransactions(ids: number[]): Promise<number>
   getPayeeSuggestions(): Promise<PayeeSuggestion[]>
+  /** suggest categories for uncategorised transactions (payee history + transfer detection) */
+  suggestCategories(transactionIds: number[]): Promise<CategorySuggestion[]>
   importTransactions(req: ImportRequest): Promise<ImportResult>
   /** parse a PDF bank statement's text into candidate import rows */
   parseStatementPdf(data: ArrayBuffer): Promise<StatementParseResult>

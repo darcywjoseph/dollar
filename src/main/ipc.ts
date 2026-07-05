@@ -86,6 +86,7 @@ export function registerIpcHandlers(db: DB, getWindow: () => BrowserWindow | nul
   )
   handle('deleteTransactions', (ids: number[]) => tx.deleteTransactions(db, ids))
   handle('getPayeeSuggestions', () => tx.getPayeeSuggestions(db))
+  handle('suggestCategories', (ids: number[]) => tx.suggestCategories(db, ids ?? []))
   handle('importTransactions', (req: ImportRequest) => tx.importTransactions(db, req))
   handle('parseStatementPdf', (data: ArrayBuffer | Uint8Array) => parseStatementPdf(data))
 

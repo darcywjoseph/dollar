@@ -1,5 +1,12 @@
 import React, { useState } from 'react'
-import type { Account, AccountInput, AccountType, Category, CategoryInput } from '@shared/types'
+import type {
+  Account,
+  AccountInput,
+  AccountType,
+  Category,
+  CategoryInput,
+  CategoryType
+} from '@shared/types'
 import { parseAmountToCents } from '@shared/money'
 import { api } from '../api'
 import { useApp } from '../appContext'
@@ -374,7 +381,7 @@ function CategoriesSection(): React.JSX.Element {
     const ok = await confirm({
       title: `Delete category “${c.name}”?`,
       message:
-        'Transactions in this category become Uncategorized and its budgets are removed. Consider archiving instead to keep history tidy.',
+        'Transactions in this category become Uncategorized — they will show up under “Categorise” on the Transactions page so you can re-file them. Its budgets are removed. Consider archiving instead to keep history tidy.',
       confirmLabel: 'Delete',
       danger: true
     })
@@ -399,8 +406,9 @@ function CategoriesSection(): React.JSX.Element {
 
   const groups: { label: string; items: Category[] }[] = [
     { label: 'Expenses', items: categories.filter((c) => c.type === 'expense') },
-    { label: 'Income', items: categories.filter((c) => c.type === 'income') }
-  ]
+    { label: 'Income', items: categories.filter((c) => c.type === 'income') },
+    { label: 'Transfers', items: categories.filter((c) => c.type === 'transfer') }
+  ].filter((g) => g.items.length > 0)
 
   return (
     <Card
@@ -479,7 +487,7 @@ function CategoryModal({
 }): React.JSX.Element {
   const { toast } = useApp()
   const [name, setName] = useState(category?.name ?? '')
-  const [type, setType] = useState<'expense' | 'income'>(category?.type ?? 'expense')
+  const [type, setType] = useState<CategoryType>(category?.type ?? 'expense')
   const [icon, setIcon] = useState(category?.icon ?? '📦')
   const [color, setColor] = useState(category?.color ?? '#6366f1')
   const [saving, setSaving] = useState(false)
@@ -529,10 +537,11 @@ function CategoryModal({
             <select
               className="input"
               value={type}
-              onChange={(e) => setType(e.target.value as 'expense' | 'income')}
+              onChange={(e) => setType(e.target.value as CategoryType)}
             >
               <option value="expense">Expense</option>
               <option value="income">Income</option>
+              <option value="transfer">Transfer (between own accounts)</option>
             </select>
           </div>
           <div>

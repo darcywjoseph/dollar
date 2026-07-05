@@ -6,6 +6,7 @@ import { parseAmountToCents } from '@shared/money'
 import { api } from '../api'
 import { useApp } from '../appContext'
 import { Button, EmptyState, Money, Spinner } from '../components/ui'
+import CategoriseFlow from './CategoriseFlow'
 import ImportWizard from './ImportWizard'
 import RecurringTab from './RecurringTab'
 
@@ -58,6 +59,8 @@ function TransactionsTab(): React.JSX.Element {
   const [editingId, setEditingId] = useState<number | null>(null)
   const [showImport, setShowImport] = useState(false)
   const [suggestions, setSuggestions] = useState<PayeeSuggestion[]>([])
+  const [uncatCount, setUncatCount] = useState(0)
+  const [categorising, setCategorising] = useState<Transaction[] | null>(null)
 
   // filters
   const [search, setSearch] = useState('')
@@ -129,11 +132,37 @@ function TransactionsTab(): React.JSX.Element {
     loadSuggestions()
   }, [loadSuggestions])
 
+  const loadUncatCount = useCallback(() => {
+    api
+      .listTransactions({ categoryId: -1, personId: personFilter ?? undefined, limit: 1 })
+      .then((p) => setUncatCount(p.total))
+      .catch(() => undefined)
+  }, [personFilter])
+  useEffect(() => {
+    loadUncatCount()
+  }, [loadUncatCount])
+
   const afterChange = useCallback(async () => {
     await load()
     loadSuggestions()
+    loadUncatCount()
     refresh().catch(() => undefined) // account balances
-  }, [load, loadSuggestions, refresh])
+  }, [load, loadSuggestions, loadUncatCount, refresh])
+
+  const openCategorise = async (): Promise<void> => {
+    try {
+      const page = await api.listTransactions({
+        categoryId: -1,
+        personId: personFilter ?? undefined,
+        sortField: 'date',
+        sortDir: 'asc',
+        limit: 1000
+      })
+      setCategorising(page.rows)
+    } catch (err) {
+      toast((err as Error).message, 'error')
+    }
+  }
 
   const deleteSelected = async (): Promise<void> => {
     const n = selected.size
@@ -262,6 +291,11 @@ function TransactionsTab(): React.JSX.Element {
           />
         </div>
         <div className="ml-auto flex gap-2">
+          {uncatCount > 0 && (
+            <Button onClick={openCategorise} title="Assign categories one after another">
+              Categorise ({uncatCount})
+            </Button>
+          )}
           <Button onClick={() => setShowImport(true)}>Import</Button>
           <Button onClick={exportCsv} disabled={total === 0}>
             Export CSV
@@ -437,6 +471,15 @@ function TransactionsTab(): React.JSX.Element {
           onClose={() => setShowImport(false)}
           onImported={async () => {
             await afterChange()
+          }}
+        />
+      )}
+      {categorising && (
+        <CategoriseFlow
+          transactions={categorising}
+          onClose={() => {
+            setCategorising(null)
+            void afterChange()
           }}
         />
       )}
@@ -653,6 +696,15 @@ function EntryForm({
           <optgroup label="Income">
             {activeCategories
               .filter((c) => c.type === 'income')
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.icon} {c.name}
+                </option>
+              ))}
+          </optgroup>
+          <optgroup label="Transfers">
+            {activeCategories
+              .filter((c) => c.type === 'transfer')
               .map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.icon} {c.name}

@@ -1,5 +1,6 @@
 import type { Database as DB } from 'better-sqlite3'
 import type {
+  CategorySuggestion,
   ImportRequest,
   ImportResult,
   PayeeSuggestion,
@@ -8,8 +9,14 @@ import type {
   TransactionInput,
   TransactionPage
 } from '@shared/types'
-import { isValidISO } from '@shared/dates'
-import { baseImportHash, existingHashCount, hashWithOccurrence, rowToTransaction } from './helpers'
+import { addDaysISO, formatDateDisplay, isValidISO } from '@shared/dates'
+import {
+  baseImportHash,
+  existingHashCount,
+  getSettings,
+  hashWithOccurrence,
+  rowToTransaction
+} from './helpers'
 
 function validateInput(db: DB, input: TransactionInput): void {
   if (!isValidISO(input.date)) throw new Error(`Invalid date: ${input.date}`)
@@ -212,6 +219,7 @@ export function importTransactions(db: DB, req: ImportRequest): ImportResult {
   let imported = 0
   let skipped = 0
   let adjusted = 0
+  const uncategorizedIds: number[] = []
   db.transaction(() => {
     // Track occurrences within this batch so identical rows in one file are
     // kept, while rows already in the db (from a prior import) are skipped.
@@ -230,7 +238,7 @@ export function importTransactions(db: DB, req: ImportRequest): ImportResult {
         batchCounts.set(base, seenInBatch + 1)
         continue
       }
-      insertTransaction(db, {
+      const id = insertTransaction(db, {
         date: row.date,
         amountCents: row.amountCents,
         payee: row.payee,
@@ -238,6 +246,7 @@ export function importTransactions(db: DB, req: ImportRequest): ImportResult {
         accountId: req.accountId,
         personId: req.personId
       })
+      if (row.categoryId == null) uncategorizedIds.push(id)
       imported++
       batchCounts.set(base, seenInBatch + 1)
     }
@@ -261,5 +270,118 @@ export function importTransactions(db: DB, req: ImportRequest): ImportResult {
       }
     }
   })()
-  return { imported, skipped, startingBalanceAdjustedCents: adjusted }
+  const byId = db.prepare('SELECT * FROM transactions WHERE id = ?')
+  const uncategorized = uncategorizedIds.map((id) => rowToTransaction(byId.get(id)))
+  return { imported, skipped, startingBalanceAdjustedCents: adjusted, uncategorized }
+}
+
+// ---------------------------------------------------------------------------
+// Category suggestions for the categorise flow
+// ---------------------------------------------------------------------------
+
+/** Payees as reported by banks carry receipt numbers, card suffixes and dates;
+ *  strip digits and punctuation so recurring merchants compare equal. */
+function normalizePayee(payee: string): string {
+  return payee
+    .toUpperCase()
+    .replace(/[0-9]/g, '')
+    .replace(/[^A-Z ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+const TRANSFER_MATCH_TOLERANCE_DAYS = 3
+
+/**
+ * Suggest a category for each transaction: the category last used for a
+ * similar payee, or the transfer category when an opposite-amount transaction
+ * exists in another account within a few days (each counter-leg claimed once).
+ */
+export function suggestCategories(db: DB, transactionIds: number[]): CategorySuggestion[] {
+  if (transactionIds.length === 0) return []
+  const ids = transactionIds.filter((id) => Number.isFinite(id))
+  const placeholders = ids.map(() => '?').join(', ')
+  const txs = (
+    db.prepare(`SELECT * FROM transactions WHERE id IN (${placeholders})`).all(...ids) as unknown[]
+  ).map(rowToTransaction)
+  const txById = new Map(txs.map((t) => [t.id, t]))
+
+  // Most recent category per normalised payee, from already-categorised rows.
+  const historyRows = db
+    .prepare(
+      `SELECT payee, category_id FROM transactions
+       WHERE category_id IS NOT NULL AND payee != '' AND id NOT IN (${placeholders})
+       ORDER BY date, id`
+    )
+    .all(...ids) as { payee: string; category_id: number }[]
+  const historyByPayee = new Map<string, number>()
+  for (const r of historyRows) {
+    const key = normalizePayee(r.payee)
+    if (key) historyByPayee.set(key, r.category_id) // later (newer) rows win
+  }
+
+  const transferCat = db
+    .prepare("SELECT id FROM categories WHERE type = 'transfer' AND archived = 0 ORDER BY id")
+    .get() as { id: number } | undefined
+
+  // Counter-leg candidates: opposite amount, different account, nearby date,
+  // and not already categorised as something other than a transfer.
+  const findLegs = transferCat
+    ? db.prepare(
+        `SELECT t.id, t.date, t.amount_cents, a.name AS account_name
+         FROM transactions t JOIN accounts a ON a.id = t.account_id
+         WHERE t.amount_cents = ? AND t.account_id != ? AND t.date >= ? AND t.date <= ?
+           AND (t.category_id IS NULL OR t.category_id = ?)
+         ORDER BY ABS(julianday(t.date) - julianday(?)), t.id`
+      )
+    : null
+  const claimedLegs = new Set<number>()
+  const symbol = getSettings(db).currencySymbol
+  const fmtLeg = (cents: number): string =>
+    `${cents < 0 ? '−' : '+'}${symbol}${(Math.abs(cents) / 100).toFixed(2)}`
+
+  const suggestions: CategorySuggestion[] = []
+  for (const id of ids) {
+    const tx = txById.get(id)
+    if (!tx || tx.categoryId != null) continue
+
+    const historyCat = historyByPayee.get(normalizePayee(tx.payee))
+    if (historyCat != null) {
+      suggestions.push({
+        transactionId: id,
+        categoryId: historyCat,
+        reason: 'history',
+        detail: 'you categorised this payee before'
+      })
+      continue
+    }
+
+    if (!transferCat || !findLegs) continue
+    const legs = findLegs.all(
+      -tx.amountCents,
+      tx.accountId,
+      addDaysISO(tx.date, -TRANSFER_MATCH_TOLERANCE_DAYS),
+      addDaysISO(tx.date, TRANSFER_MATCH_TOLERANCE_DAYS),
+      transferCat.id,
+      tx.date
+    ) as { id: number; date: string; amount_cents: number; account_name: string }[]
+    const leg = legs.find((l) => l.id !== id && !claimedLegs.has(l.id))
+    if (leg) {
+      claimedLegs.add(leg.id)
+      suggestions.push({
+        transactionId: id,
+        categoryId: transferCat.id,
+        reason: 'transfer',
+        detail: `matches ${fmtLeg(leg.amount_cents)} in ${leg.account_name} on ${formatDateDisplay(leg.date)}`
+      })
+    } else if (/\btransfer\b/i.test(tx.payee)) {
+      suggestions.push({
+        transactionId: id,
+        categoryId: transferCat.id,
+        reason: 'transfer',
+        detail: 'the description mentions a transfer'
+      })
+    }
+  }
+  return suggestions
 }

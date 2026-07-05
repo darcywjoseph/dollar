@@ -155,10 +155,39 @@ const MIGRATIONS: string[] = [
     filename TEXT NOT NULL,
     data BLOB NOT NULL
   );
+  `,
+  // v4 — intentionally empty. Databases created during pre-merge development
+  // already report user_version 4 (an abandoned import_batches migration), so
+  // this slot is burned to keep them in step with fresh databases.
+  `
+  SELECT 1;
+  `,
+  // v5 — 'transfer' category type for money moved between own accounts
+  // (excluded from income/spending analytics). SQLite cannot alter a CHECK
+  // constraint, so the table is rebuilt; runs with foreign_keys off.
+  `
+  CREATE TABLE categories_new (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('expense','income','transfer')),
+    icon TEXT NOT NULL DEFAULT '',
+    color TEXT NOT NULL DEFAULT '#94a3b8',
+    archived INTEGER NOT NULL DEFAULT 0
+  );
+  INSERT INTO categories_new SELECT id, name, type, icon, color, archived FROM categories;
+  DROP TABLE categories;
+  ALTER TABLE categories_new RENAME TO categories;
+
+  -- Existing databases get the category here; fresh ones (still empty at this
+  -- point) get it from the seed defaults instead.
+  INSERT INTO categories (name, type, icon, color)
+  SELECT 'Internal Transfer', 'transfer', '🔁', '#64748b'
+  WHERE (SELECT COUNT(*) FROM categories) > 0
+    AND NOT EXISTS (SELECT 1 FROM categories WHERE type = 'transfer');
   `
 ]
 
-const DEFAULT_CATEGORIES: [string, 'expense' | 'income', string, string][] = [
+const DEFAULT_CATEGORIES: [string, 'expense' | 'income' | 'transfer', string, string][] = [
   ['Groceries', 'expense', '🛒', '#22c55e'],
   ['Rent/Mortgage', 'expense', '🏠', '#6366f1'],
   ['Utilities', 'expense', '💡', '#eab308'],
@@ -175,7 +204,8 @@ const DEFAULT_CATEGORIES: [string, 'expense' | 'income', string, string][] = [
   ['Other', 'expense', '📦', '#94a3b8'],
   ['Salary', 'income', '💼', '#16a34a'],
   ['Interest', 'income', '🏦', '#65a30d'],
-  ['Other Income', 'income', '💰', '#84cc16']
+  ['Other Income', 'income', '💰', '#84cc16'],
+  ['Internal Transfer', 'transfer', '🔁', '#64748b']
 ]
 
 export const DEFAULT_SETTINGS: Record<string, string> = {
@@ -189,8 +219,11 @@ export const DEFAULT_SETTINGS: Record<string, string> = {
 export function openDatabase(filePath: string): DB {
   const db = new Database(filePath)
   db.pragma('journal_mode = WAL')
-  db.pragma('foreign_keys = ON')
+  // Migrations run with foreign keys off so tables can be rebuilt (v5);
+  // better-sqlite3 turns enforcement on by default.
+  db.pragma('foreign_keys = OFF')
   migrate(db)
+  db.pragma('foreign_keys = ON')
   seed(db)
   return db
 }

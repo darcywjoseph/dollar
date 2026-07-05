@@ -7,6 +7,7 @@ import { guessColumn, parseDateFlexible, type DateConvention } from '@shared/imp
 import { api } from '../api'
 import { useApp } from '../appContext'
 import { Badge, Button, Modal } from '../components/ui'
+import CategoriseFlow from './CategoriseFlow'
 
 type Step = 'upload' | 'map' | 'done'
 
@@ -48,6 +49,8 @@ export default function ImportWizard({
   >(null)
   // per parsed-row index: id of the payslip whose net pay the row duplicates
   const [payslipMatches, setPayslipMatches] = useState<(number | null)[]>([])
+  // hand over to the card-by-card categorise flow after a successful import
+  const [categorising, setCategorising] = useState(false)
   // matched rows the user chose to import anyway
   const [includeAnyway, setIncludeAnyway] = useState<Set<number>>(new Set())
   const fileRef = useRef<HTMLInputElement>(null)
@@ -235,6 +238,18 @@ export default function ImportWizard({
     } finally {
       setImporting(false)
     }
+  }
+
+  if (categorising && result) {
+    return (
+      <CategoriseFlow
+        transactions={result.uncategorized}
+        onClose={() => {
+          void onImported()
+          onClose()
+        }}
+      />
+    )
   }
 
   const colSelect = (
@@ -542,8 +557,17 @@ export default function ImportWizard({
               </p>
             )}
           </div>
-          <div className="flex justify-center">
-            <Button variant="primary" onClick={onClose}>
+          <div className="flex justify-center gap-2">
+            {result.uncategorized.length > 0 && (
+              <Button variant="primary" onClick={() => setCategorising(true)}>
+                Categorise {result.uncategorized.length} transaction
+                {result.uncategorized.length === 1 ? '' : 's'}
+              </Button>
+            )}
+            <Button
+              variant={result.uncategorized.length > 0 ? 'secondary' : 'primary'}
+              onClick={onClose}
+            >
               Done
             </Button>
           </div>

@@ -288,6 +288,97 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
   assert(r4.startingBalanceAdjustedCents === 0, 'reconcile with matching balance is a no-op')
   results.import = { first: r1, second: r2, reconciled: r3.startingBalanceAdjustedCents }
 
+  // --- transfer category & post-import categorisation aids ---
+  const transferCat = core.listCategories(db).find((c) => c.type === 'transfer')
+  assert(transferCat != null, 'Internal Transfer category seeded')
+  assert(
+    r1.uncategorized.length === 2 && r1.uncategorized.every((t) => t.categoryId == null),
+    `import surfaces its uncategorised rows (got ${r1.uncategorized.length})`
+  )
+  assert(r2.uncategorized.length === 0, 'a fully deduped import surfaces none')
+
+  // history: normalised payee match (digits stripped) suggests the prior category
+  const histTx = tx.createTransaction(db, {
+    date: todayISO(),
+    amountCents: -8123,
+    payee: 'WHOLE FOODS 4412',
+    categoryId: null,
+    accountId: acct1.id,
+    personId: 1
+  })
+  // transfer: opposite-amount legs in different accounts around the same day
+  const legOut = tx.createTransaction(db, {
+    date: todayISO(),
+    amountCents: -50000,
+    payee: 'Transfer to xx1234 CommBank app',
+    categoryId: null,
+    accountId: acct1.id,
+    personId: 1
+  })
+  const legIn = tx.createTransaction(db, {
+    date: todayISO(),
+    amountCents: 50000,
+    payee: 'Direct Credit 555555',
+    categoryId: null,
+    accountId: acct2.id,
+    personId: 2
+  })
+  const suggested = new Map(
+    tx.suggestCategories(db, [histTx.id, legOut.id, legIn.id]).map((s) => [s.transactionId, s])
+  )
+  assert(
+    suggested.get(histTx.id)?.categoryId === groceries.id &&
+      suggested.get(histTx.id)?.reason === 'history',
+    `payee history suggestion (got ${JSON.stringify(suggested.get(histTx.id))})`
+  )
+  assert(
+    suggested.get(legOut.id)?.categoryId === transferCat.id &&
+      suggested.get(legOut.id)?.reason === 'transfer',
+    `outgoing transfer leg detected (got ${JSON.stringify(suggested.get(legOut.id))})`
+  )
+  assert(
+    suggested.get(legIn.id)?.categoryId === transferCat.id,
+    `incoming transfer leg detected (got ${JSON.stringify(suggested.get(legIn.id))})`
+  )
+
+  // transfers count as neither income nor spending, but balances still move
+  const dashPre = analytics.getDashboard(db, nowMonth, null)
+  tx.updateTransaction(db, legOut.id, { categoryId: transferCat.id })
+  tx.updateTransaction(db, legIn.id, { categoryId: transferCat.id })
+  const dashPost = analytics.getDashboard(db, nowMonth, null)
+  assert(
+    dashPost.incomeCents === dashPre.incomeCents - 50000 &&
+      dashPost.spendingCents === dashPre.spendingCents - 50000,
+    `transfers excluded from totals (income ${dashPre.incomeCents}->${dashPost.incomeCents}, spending ${dashPre.spendingCents}->${dashPost.spendingCents})`
+  )
+  assert(
+    !analytics
+      .getDashboard(db, nowMonth, null)
+      .byCategory.some((c) => c.categoryId === transferCat.id),
+    'transfer category absent from spend-by-category'
+  )
+  assert(
+    !budgets.getBudgetGrid(db, nowMonth).rows.some((r) => r.categoryId === transferCat.id),
+    'transfer spending creates no budget row'
+  )
+  results.transfers = { suggested: suggested.size }
+
+  // deleting a category re-queues its transactions for categorisation
+  const doomed = core
+    .createCategory(db, {
+      name: 'Doomed',
+      type: 'expense',
+      icon: '💣',
+      color: '#000000'
+    })
+    .find((c) => c.name === 'Doomed')!
+  tx.updateTransaction(db, histTx.id, { categoryId: doomed.id })
+  core.deleteCategory(db, doomed.id)
+  assert(
+    tx.listTransactions(db, { search: 'WHOLE FOODS 4412' }).rows[0].categoryId === null,
+    'deleted category leaves its transactions uncategorised'
+  )
+
   // --- recurring rules ---
   const rules = recurring.createRecurring(db, {
     name: 'Netflix',
@@ -301,7 +392,9 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
   assert(rules.length === 1, 'rule created')
   const instances = tx.listTransactions(db, { search: 'Netflix' })
   assert(instances.total >= 2, `past recurring instances generated (got ${instances.total})`)
-  const upcoming = recurring.upcomingInstances(db, 30, null)
+  // 32-day horizon: after catch-up the next monthly instance can be a full
+  // 31-day month away (e.g. running on Jul 5 puts it on Aug 5)
+  const upcoming = recurring.upcomingInstances(db, 32, null)
   assert(upcoming.length >= 1, 'upcoming instances expand')
   results.recurring = { generated: instances.total, upcoming: upcoming.length }
 

@@ -217,6 +217,13 @@ export function hashWithOccurrence(base: string, occurrence: number): string {
   return occurrence === 0 ? base : `${base}:${occurrence}`
 }
 
+/** SQL condition excluding transactions categorised as internal transfers,
+ *  which move money between own accounts and are neither income nor spending. */
+export function notTransferSql(alias = ''): string {
+  const col = alias ? `${alias}.category_id` : 'category_id'
+  return `(${col} IS NULL OR ${col} NOT IN (SELECT id FROM categories WHERE type = 'transfer'))`
+}
+
 /** SQL expression mapping a tx date to its budget-month key for firstDay. */
 export function monthKeySql(firstDay: number, column = 'date'): string {
   const shift = firstDay - 1

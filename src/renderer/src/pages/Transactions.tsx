@@ -262,7 +262,7 @@ function TransactionsTab(): React.JSX.Element {
           />
         </div>
         <div className="ml-auto flex gap-2">
-          <Button onClick={() => setShowImport(true)}>Import CSV</Button>
+          <Button onClick={() => setShowImport(true)}>Import</Button>
           <Button onClick={exportCsv} disabled={total === 0}>
             Export CSV
           </Button>

@@ -16,6 +16,8 @@ import {
 } from '@shared/dates'
 import { parseAmountToCents } from '@shared/money'
 import { parseDateFlexible } from '@shared/importUtils'
+import { parseBankStatement } from '@shared/bankStatement'
+import { parseStatementPdf } from './statementPdf'
 import * as core from './db/core'
 import * as tx from './db/transactions'
 import * as recurring from './db/recurring'
@@ -28,6 +30,34 @@ import * as income from './db/income'
 
 function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(`assertion failed: ${msg}`)
+}
+
+/** Minimal one-page PDF drawing each line of text on its own baseline. */
+function buildTestPdf(lines: string[]): Buffer {
+  const content =
+    'BT /F1 10 Tf\n' +
+    lines
+      .map((l, i) => `1 0 0 1 40 ${760 - i * 14} Tm (${l.replace(/([\\()])/g, '\\$1')}) Tj`)
+      .join('\n') +
+    '\nET'
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${content.length} >>\nstream\n${content}\nendstream`
+  ]
+  let out = '%PDF-1.4\n'
+  const offsets: number[] = []
+  objects.forEach((body, i) => {
+    offsets.push(out.length)
+    out += `${i + 1} 0 obj\n${body}\nendobj\n`
+  })
+  const xref = out.length
+  out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`
+  for (const off of offsets) out += `${String(off).padStart(10, '0')} 00000 n \n`
+  out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`
+  return Buffer.from(out, 'latin1')
 }
 
 export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): Promise<void> {
@@ -54,6 +84,97 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
   assert(parseDateFlexible('07/04/2026') === '2026-07-04', 'parse MDY date')
   assert(parseDateFlexible('04/07/2026', 'dmy') === '2026-07-04', 'parse DMY date')
   assert(parseDateFlexible('Jul 4, 2026') === '2026-07-04', 'parse textual date')
+
+  // --- PDF bank statement parsing ---
+  const stmtLines = [
+    'Your Statement',
+    'Statement Period 2 Dec 2025 - 3 Jun 2026',
+    'Date Transaction Debit Credit Balance',
+    '02 Dec 2025 OPENING BALANCE Nil',
+    '23 Dec Transfer from savings 30.00 30.00 CR',
+    '30 Dec WOOLWORTHS 5547 WALKERVILLE',
+    'Card xx6122',
+    'Value Date 29/12/2025 8.50 21.50 CR',
+    '18 Apr BUPA HI PTY LTD 53.13 31.63 DR',
+    '19 Apr Salary deposit 331.63 300.00 CR',
+    '03 Jun 2026 CLOSING BALANCE 300.00 CR'
+  ]
+  const checkStatement = (parsed: ReturnType<typeof parseBankStatement>, label: string): void => {
+    assert(
+      parsed.periodStart === '2025-12-02' && parsed.periodEnd === '2026-06-03',
+      `${label}: statement period detected (got ${parsed.periodStart}..${parsed.periodEnd})`
+    )
+    assert(parsed.warnings.length === 0, `${label}: no warnings (got ${parsed.warnings[0]})`)
+    assert(
+      parsed.transactions.length === 4,
+      `${label}: row count (got ${parsed.transactions.length})`
+    )
+    const [a, b, c, d] = parsed.transactions
+    // year inferred per row from the period; sign from the balance movement
+    assert(a.date === '2025-12-23' && a.amountCents === 3000, `${label}: credit row`)
+    assert(
+      b.date === '2025-12-30' &&
+        b.amountCents === -850 &&
+        b.description === 'WOOLWORTHS 5547 WALKERVILLE',
+      `${label}: multi-line debit row drops card metadata (got ${JSON.stringify(b)})`
+    )
+    assert(c.date === '2026-04-18' && c.amountCents === -5313, `${label}: overdrawn (DR) balance`)
+    assert(d.date === '2026-04-19' && d.amountCents === 33163, `${label}: deposit from DR balance`)
+    assert(
+      parsed.openingBalanceCents === 0 && parsed.closingBalanceCents === 30000,
+      `${label}: opening/closing balances (got ${parsed.openingBalanceCents}/${parsed.closingBalanceCents})`
+    )
+  }
+  checkStatement(parseBankStatement(stmtLines), 'statement lines')
+  // through a real PDF: exercises pdf.js text extraction end to end
+  checkStatement(await parseStatementPdf(buildTestPdf(stmtLines)), 'statement pdf')
+
+  // --- NetBank "Transaction Summary" letter format ---
+  const summaryLines = [
+    'Account Number 067873 23355473',
+    'Here is your account information and a list of transactions from 01/05/26-04/07/26.',
+    'Date Transaction details Amount Balance',
+    '07 May 2026 Transfer from xxxx CommBank app $650.00 $250.00',
+    '09 May 2026 Transfer To Henley Beach Rentals -$1,300.00 -$1,050.00',
+    'CommBank App Rent',
+    'Value Date: 10/05/2026',
+    '21 May 2026 CRUNCHY BITES ADELAIDE AU -$12.64 -$1,062.64',
+    'Created 04/07/26 11:15pm (Sydney/Melbourne time)',
+    'While this letter is accurate, we are not responsible for reliance on it.',
+    'Date Transaction details Amount Balance',
+    '22 May 2026 Transfer from xxxx CommBank app $1,100.00 $37.36',
+    'Rent',
+    'Any pending transactions have not been included in this list.',
+    'This line is footer text that must not attach to a transaction.'
+  ]
+  const summary = parseBankStatement(summaryLines)
+  assert(
+    summary.periodStart === '2026-05-01' && summary.periodEnd === '2026-07-04',
+    `summary: period from slash dates (got ${summary.periodStart}..${summary.periodEnd})`
+  )
+  assert(summary.warnings.length === 0, `summary: no warnings (got ${summary.warnings[0]})`)
+  assert(
+    summary.transactions.length === 4,
+    `summary: row count (got ${summary.transactions.length})`
+  )
+  const [sa, sb, sc, sd] = summary.transactions
+  assert(sa.date === '2026-05-07' && sa.amountCents === 65000, 'summary: credit row')
+  assert(
+    sb.amountCents === -130000 &&
+      sb.description === 'Transfer To Henley Beach Rentals CommBank App Rent',
+    `summary: trailing description attaches, value date dropped (got ${JSON.stringify(sb)})`
+  )
+  assert(sc.amountCents === -1264, 'summary: negative balance row')
+  assert(
+    sd.amountCents === 110000 && sd.description === 'Transfer from xxxx CommBank app Rent',
+    `summary: footer text not attached (got ${JSON.stringify(sd)})`
+  )
+  assert(
+    // the account held -$400.00 before the period (first balance minus amount)
+    summary.openingBalanceCents === -40000 && summary.closingBalanceCents === 3736,
+    `summary: opening/closing balances (got ${summary.openingBalanceCents}/${summary.closingBalanceCents})`
+  )
+  results.statementPdf = 'ok'
 
   // --- sample data: savings account, categories, several months of txs ---
   const groceries = categories.find((c) => c.name === 'Groceries')!
@@ -143,7 +264,29 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
     `re-import is fully deduped (got ${JSON.stringify(r2)})`
   )
   assert(tx.listTransactions(db, {}).total === before + 3, 'import count')
-  results.import = { first: r1, second: r2 }
+
+  // --- reconcile against a statement closing balance ---
+  const balBefore = core.accountBalances(db).find((b) => b.accountId === acct1.id)!.balanceCents
+  const r3 = tx.importTransactions(db, {
+    rows,
+    accountId: acct1.id,
+    personId: 1,
+    reconcileBalanceCents: balBefore + 12345
+  })
+  assert(
+    r3.imported === 0 && r3.startingBalanceAdjustedCents === 12345,
+    `reconcile adjusts starting balance (got ${JSON.stringify(r3)})`
+  )
+  const balAfter = core.accountBalances(db).find((b) => b.accountId === acct1.id)!.balanceCents
+  assert(balAfter === balBefore + 12345, `reconciled balance (got ${balAfter})`)
+  const r4 = tx.importTransactions(db, {
+    rows,
+    accountId: acct1.id,
+    personId: 1,
+    reconcileBalanceCents: balBefore + 12345
+  })
+  assert(r4.startingBalanceAdjustedCents === 0, 'reconcile with matching balance is a no-op')
+  results.import = { first: r1, second: r2, reconciled: r3.startingBalanceAdjustedCents }
 
   // --- recurring rules ---
   const rules = recurring.createRecurring(db, {

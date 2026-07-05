@@ -218,11 +218,37 @@ export interface ImportRequest {
   rows: ImportRow[]
   accountId: number
   personId: number
+  /** When set, adjust the account's starting balance after the import so the
+   *  account's balance equals this (a statement's closing balance). */
+  reconcileBalanceCents?: number
 }
 
 export interface ImportResult {
   imported: number
   skipped: number
+  /** Delta applied to the account's starting balance by reconciliation */
+  startingBalanceAdjustedCents?: number
+}
+
+/** One row parsed out of a PDF bank statement. */
+export interface StatementTransaction {
+  /** ISO date; the year is inferred from the statement period */
+  date: string
+  /** Signed integer cents: deposits positive, withdrawals negative */
+  amountCents: number
+  description: string
+}
+
+export interface StatementParseResult {
+  /** Statement period detected from the PDF header, when present */
+  periodStart: string | null
+  periodEnd: string | null
+  /** Account balance at the start/end of the statement, when derivable */
+  openingBalanceCents: number | null
+  closingBalanceCents: number | null
+  transactions: StatementTransaction[]
+  /** Rows that could not be fully parsed, described for the user */
+  warnings: string[]
 }
 
 export interface RecurringRuleInput {
@@ -571,6 +597,8 @@ export interface LedgerApi {
   deleteTransactions(ids: number[]): Promise<number>
   getPayeeSuggestions(): Promise<PayeeSuggestion[]>
   importTransactions(req: ImportRequest): Promise<ImportResult>
+  /** parse a PDF bank statement's text into candidate import rows */
+  parseStatementPdf(data: ArrayBuffer): Promise<StatementParseResult>
 
   listPayslips(filter: PayslipFilter): Promise<Payslip[]>
   createPayslip(input: PayslipInput, opts: PayslipSaveOptions): Promise<Payslip>

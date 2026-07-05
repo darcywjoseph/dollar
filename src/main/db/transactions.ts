@@ -211,6 +211,7 @@ export function importTransactions(db: DB, req: ImportRequest): ImportResult {
 
   let imported = 0
   let skipped = 0
+  let adjusted = 0
   db.transaction(() => {
     // Track occurrences within this batch so identical rows in one file are
     // kept, while rows already in the db (from a prior import) are skipped.
@@ -240,6 +241,25 @@ export function importTransactions(db: DB, req: ImportRequest): ImportResult {
       imported++
       batchCounts.set(base, seenInBatch + 1)
     }
+
+    // Reconcile: shift the starting balance so the account's balance equals
+    // the statement's closing balance (a statement only covers a period; the
+    // account may have held money before it).
+    if (req.reconcileBalanceCents != null) {
+      const { balance } = db
+        .prepare(
+          `SELECT a.starting_balance_cents + COALESCE(SUM(t.amount_cents), 0) AS balance
+           FROM accounts a LEFT JOIN transactions t ON t.account_id = a.id
+           WHERE a.id = ? GROUP BY a.id`
+        )
+        .get(req.accountId) as { balance: number }
+      adjusted = Math.round(req.reconcileBalanceCents) - balance
+      if (adjusted !== 0) {
+        db.prepare(
+          'UPDATE accounts SET starting_balance_cents = starting_balance_cents + ? WHERE id = ?'
+        ).run(adjusted, req.accountId)
+      }
+    }
   })()
-  return { imported, skipped }
+  return { imported, skipped, startingBalanceAdjustedCents: adjusted }
 }

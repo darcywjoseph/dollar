@@ -178,8 +178,10 @@ export function getSettingsMap(db: DB): Record<string, string> {
   return Object.fromEntries(rows.map((r) => [r.key, r.value]))
 }
 
-export function getSettings(db: DB): AppSettings {
-  const m = getSettingsMap(db)
+/** Settings that each user controls independently; the rest are shared. */
+export const USER_SETTING_KEYS = new Set(['theme', 'viewMode'])
+
+function parseSettings(m: Record<string, string>): AppSettings {
   const firstDay = Math.min(28, Math.max(1, parseInt(m.firstDayOfMonth ?? '1', 10) || 1))
   const win = m.forecastWindow === '6' ? 6 : 3
   const theme = m.theme === 'light' || m.theme === 'dark' ? m.theme : 'system'
@@ -192,10 +194,33 @@ export function getSettings(db: DB): AppSettings {
   }
 }
 
+export function getSettings(db: DB): AppSettings {
+  return parseSettings(getSettingsMap(db))
+}
+
+/** Global settings with this user's per-user overrides layered on top. Absent
+ *  overrides fall through to the global value, so pre-auth values keep working. */
+export function getSettingsForUser(db: DB, userId: number): AppSettings {
+  const merged = getSettingsMap(db)
+  const rows = db.prepare('SELECT key, value FROM user_settings WHERE user_id = ?').all(userId) as {
+    key: string
+    value: string
+  }[]
+  for (const r of rows) merged[r.key] = r.value
+  return parseSettings(merged)
+}
+
 export function setSetting(db: DB, key: string, value: string): void {
   db.prepare(
     'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value'
   ).run(key, value)
+}
+
+export function setUserSetting(db: DB, userId: number, key: string, value: string): void {
+  db.prepare(
+    `INSERT INTO user_settings (user_id, key, value) VALUES (?, ?, ?)
+       ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value`
+  ).run(userId, key, value)
 }
 
 export function baseImportHash(date: string, amountCents: number, payee: string): string {

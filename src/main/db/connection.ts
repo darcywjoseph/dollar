@@ -184,6 +184,33 @@ const MIGRATIONS: string[] = [
   SELECT 'Internal Transfer', 'transfer', '🔁', '#64748b'
   WHERE (SELECT COUNT(*) FROM categories) > 0
     AND NOT EXISTS (SELECT 1 FROM categories WHERE type = 'transfer');
+  `,
+  // v6 — logins for the shared server. A user maps to one person row; sessions
+  // are bearer tokens (stored hashed); user_settings hold per-user overrides
+  // (theme, viewMode) that used to be global in the settings table.
+  `
+  CREATE TABLE users (
+    id INTEGER PRIMARY KEY,
+    person_id INTEGER NOT NULL UNIQUE REFERENCES people(id),
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL,
+    last_used_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE user_settings (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    PRIMARY KEY (user_id, key)
+  );
   `
 ]
 

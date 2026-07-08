@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import type { Account, AppSettings, Category, Person } from '@shared/types'
+import type { Account, AppSettings, Category, CurrentUser, Person } from '@shared/types'
 
 export type ViewMode = 'combined' | number
 
@@ -23,6 +23,8 @@ export interface AppState {
   categories: Category[]
   balances: Map<number, number>
   settings: AppSettings
+  currentUser: CurrentUser | null
+  logout: () => Promise<void>
   viewMode: ViewMode
   isDark: boolean
   setViewMode: (mode: ViewMode) => void

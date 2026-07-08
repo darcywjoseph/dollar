@@ -700,7 +700,7 @@ export async function runSmokeTest(db: DB, createWindow: () => BrowserWindow): P
   await capture('forecast', 'forecast')
   assert(crashed.length === 0, `renderer crashed: ${crashed.join(',')}`)
 
-  const errors = await win.webContents.executeJavaScript('window.__ledgerErrors || []')
+  const errors = await win.webContents.executeJavaScript('window.__dollarErrors || []')
   results.rendererErrors = errors
 
   console.log('[smoke] PASS ' + JSON.stringify(results, null, 2))

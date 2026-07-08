@@ -3,6 +3,7 @@ import type { Payslip, PayslipInput, Transaction } from '@shared/types'
 import { formatDateDisplay, todayISO } from '@shared/dates'
 import { parseAmountToCents } from '@shared/money'
 import { api } from '../api'
+import { nativeApi } from '../nativeApi'
 import { useApp } from '../appContext'
 import { Button, Modal, Money } from '../components/ui'
 
@@ -47,7 +48,9 @@ export default function PayslipModal({
   // 'unchanged' keeps whatever is stored; 'attach' reads a new file on save;
   // 'remove' deletes the stored PDF on save.
   const [pdf, setPdf] = useState<
-    { kind: 'unchanged' } | { kind: 'attach'; path: string } | { kind: 'remove' }
+    | { kind: 'unchanged' }
+    | { kind: 'attach'; filename: string; data: ArrayBuffer }
+    | { kind: 'remove' }
   >({ kind: 'unchanged' })
   const [accountId, setAccountId] = useState<number | ''>(() => {
     const own = activeAccounts.find((a) => a.personId === personId)
@@ -108,15 +111,18 @@ export default function PayslipModal({
 
   const shownPdfName =
     pdf.kind === 'attach'
-      ? (pdf.path.split(/[\\/]/).pop() ?? pdf.path)
+      ? pdf.filename
       : pdf.kind === 'remove'
         ? null
         : (payslip?.pdfFilename ?? null)
 
   const attachPdf = async (): Promise<void> => {
     try {
-      const res = await api.pickPayslipPdf()
-      if (res.path) setPdf({ kind: 'attach', path: res.path })
+      const res = await nativeApi.pickPayslipPdf()
+      if (!('canceled' in res && res.canceled)) {
+        const picked = res as { filename: string; data: ArrayBuffer }
+        setPdf({ kind: 'attach', filename: picked.filename, data: picked.data })
+      }
     } catch (err) {
       toast((err as Error).message, 'error')
     }
@@ -143,9 +149,9 @@ export default function PayslipModal({
         await api.updatePayslip(payslip.id, {
           ...input,
           ...(pdf.kind === 'attach'
-            ? { pdfSourcePath: pdf.path }
+            ? { pdf: { filename: pdf.filename, data: pdf.data } }
             : pdf.kind === 'remove'
-              ? { pdfSourcePath: null }
+              ? { pdf: null }
               : {})
         })
         toast('Payslip updated', 'success')
@@ -154,7 +160,7 @@ export default function PayslipModal({
           accountId,
           categoryId: salaryCategory?.id ?? null,
           linkTransactionId: linkTransactionId ?? null,
-          pdfSourcePath: pdf.kind === 'attach' ? pdf.path : null
+          pdf: pdf.kind === 'attach' ? { filename: pdf.filename, data: pdf.data } : null
         })
         toast(
           linkTransactionId != null

@@ -74,7 +74,27 @@ export function importBackup(db: DB, data: unknown): void {
   }
   if (d.people.length !== 2) throw new Error('Backup must contain exactly two people')
 
+  // A login (users.person_id) references people(id). Rewriting the people table
+  // would orphan those references unless the backup still contains those ids.
+  const hasUsers = db
+    .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'users'")
+    .get()
+  if (hasUsers) {
+    const backupPersonIds = new Set(d.people.map((p) => p.id))
+    const userPersonIds = db.prepare('SELECT DISTINCT person_id FROM users').all() as {
+      person_id: number
+    }[]
+    for (const { person_id } of userPersonIds) {
+      if (!backupPersonIds.has(person_id)) {
+        throw new Error(`Backup is missing person ${person_id}, which a login is tied to`)
+      }
+    }
+  }
+
   db.transaction(() => {
+    // Defer FK checks to commit so DELETE FROM people (referenced by users)
+    // is allowed as long as the ids are re-inserted below.
+    db.pragma('defer_foreign_keys = ON')
     db.prepare('DELETE FROM balance_adjustments').run()
     db.prepare('DELETE FROM tracked_balances').run()
     db.prepare('DELETE FROM payslip_files').run()

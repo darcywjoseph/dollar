@@ -1,0 +1,28 @@
+{
+  "name": "dollar-server",
+  "version": "0.1.0",
+  "description": "Shared backend for the dollar budgeting app.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node dev-run.mjs --watch src/index.ts",
+    "start": "node dist/index.cjs",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=cjs --target=node20 --outfile=dist/index.cjs --tsconfig=tsconfig.json --external:better-sqlite3 --external:pdfjs-dist --external:pdfjs-dist/*",
+    "cli": "node dev-run.mjs src/cli.ts",
+    "smoke": "node dev-run.mjs src/smoke.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.2.0",
+    "pdfjs-dist": "^4.10.38"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.15.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.8.3"
+  }
+}

@@ -4,6 +4,7 @@ import type { PayeeSuggestion, Transaction, TransactionFilter } from '@shared/ty
 import { formatDateDisplay, todayISO } from '@shared/dates'
 import { parseAmountToCents } from '@shared/money'
 import { api } from '../api'
+import { nativeApi } from '../nativeApi'
 import { useApp } from '../appContext'
 import { Button, EmptyState, Money, Spinner } from '../components/ui'
 import CategoriseFlow from './CategoriseFlow'
@@ -206,7 +207,7 @@ function TransactionsTab(): React.JSX.Element {
           tags: t.tags ?? ''
         }))
       )
-      const res = await api.saveCsv(`dollar-transactions-${todayISO()}.csv`, csv)
+      const res = await nativeApi.saveTextFile(`dollar-transactions-${todayISO()}.csv`, csv, 'csv')
       if (res.saved) toast(`Exported ${all.length} transactions`, 'success')
     } catch (err) {
       toast((err as Error).message, 'error')

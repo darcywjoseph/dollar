@@ -22,17 +22,16 @@
     "format:check": "prettier --check .",
     "build": "electron-vite build && electron-builder",
     "build:dir": "electron-vite build && electron-builder --dir",
-    "postinstall": "electron-builder install-app-deps",
+    "icons": "node scripts/make-icons.mjs",
     "prepare": "husky"
-  },
-  "dependencies": {
-    "better-sqlite3": "^12.2.0",
-    "pdfjs-dist": "^4.10.38"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@resvg/resvg-js": "^2.6.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.15.0",
+    "better-sqlite3": "^12.2.0",
+    "pdfjs-dist": "^4.10.38",
     "@types/papaparse": "^5.3.16",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",

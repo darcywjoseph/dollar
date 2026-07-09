@@ -1,5 +1,6 @@
 import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
+import icon from '../../resources/icon.png?asset'
 import { registerNativeHandlers } from './native'
 
 let mainWindow: BrowserWindow | null = null
@@ -12,6 +13,7 @@ function createWindow(): BrowserWindow {
     minHeight: 600,
     show: false,
     title: 'dollar',
+    icon,
     backgroundColor: '#f8fafc',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

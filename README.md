@@ -115,6 +115,44 @@ This gives a real TLS URL like `https://<host>.<tailnet>.ts.net` reachable only 
 `tailscale serve` isn't available, bind `DOLLAR_BIND` to the machine's Tailscale IP and use
 `http://<magicdns-name>:8420` — WireGuard already encrypts the traffic.
 
+### Granting your partner access
+
+Two safe ways to let a second person's laptop reach the server:
+
+- **Invite them onto your tailnet (simplest).** In the Tailscale admin console, invite them; they
+  install Tailscale and sign in, and their laptop joins as a node that can reach the server URL.
+  Trade-off: they're on your whole tailnet.
+- **Share only the server (least privilege).** Use Tailscale node **sharing**, or an **ACL** so
+  their device can reach only the server on port 8420 and nothing else:
+
+  ```jsonc
+  // Tailscale ACL — this device may reach only the dollar server
+  "acls": [
+    { "action": "accept", "src": ["partner@example.com"], "dst": ["homeserver:8420"] }
+  ]
+  ```
+
+  Prefer this when you have other machines on the tailnet you'd rather keep private.
+
+## Security model
+
+The server is **never exposed to the public internet**. It binds to `127.0.0.1` (loopback) and is
+reachable only through Tailscale — a private [WireGuard](https://www.wireguard.com/) mesh. There is
+no open inbound port on your home router, so there's nothing for the public internet to scan or
+brute-force. Access is defended in four layers:
+
+1. **Loopback bind** — the server accepts connections only from its own machine.
+2. **Tailscale / WireGuard** — only devices you've admitted to your tailnet can connect, and all
+   traffic is end-to-end encrypted.
+3. **TLS** — `tailscale serve` provides a real HTTPS certificate on the `.ts.net` URL.
+4. **App auth** — scrypt-hashed passwords, bearer sessions, timing-safe comparison, and a ~300 ms
+   delay on failed logins.
+
+**Do not port-forward the server to the internet** — that's the one dangerous shortcut, putting
+financial data behind only a password on the open internet. If Tailscale is ever unavailable, a
+[Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+(no open inbound ports) is the next-safest option.
+
 ### Moving existing data onto the server
 
 If you already have a local `dollar.db` from the old desktop-only version:
@@ -141,8 +179,31 @@ npm run build       # typechecked bundle + installer
 npm run build:dir   # unpacked app in dist/ without an installer
 ```
 
-On macOS this produces an unsigned `.dmg` and `.zip` in `dist/`. Windows and Linux targets are
-configured in `electron-builder.yml`. Install the app on each laptop and point it at the server URL.
+On macOS this produces a single **universal** (Apple Silicon + Intel), **unsigned** `.dmg` and
+`.zip` in `dist/` — one file that runs natively on either kind of Mac. Windows and Linux targets
+are configured in `electron-builder.yml`. The client bundles no native modules, so no rebuild or
+signing setup is needed.
+
+The app icon is generated from `build/icon.svg`. To change it, edit the SVG and run
+`npm run icons` (regenerates `build/icon.png` and `resources/icon.png`); electron-builder derives
+the platform `.icns`/`.ico` from `build/icon.png`.
+
+### Installing on another Mac
+
+Since the app is a client of the shared server, the person installing it needs tailnet access and
+a login first. One-time setup:
+
+1. **Join the tailnet** — install [Tailscale](https://tailscale.com), sign in, and accept the
+   invite/share (see _Granting your partner access_ above) so `https://<host>.<tailnet>.ts.net`
+   resolves.
+2. **Install** — open the `.dmg` and drag **dollar** to Applications.
+3. **First launch (unsigned app)** — right-click the app → **Open** → **Open**. macOS only prompts
+   this way once. (Equivalent: `xattr -cr /Applications/dollar.app` in Terminal.)
+4. **Connect** — launch it, enter the server URL, then sign in with the login created via
+   `npm --prefix server run cli -- add-user`.
+
+Distribution is manual (AirDrop / file share) and there's no auto-update — a new version means
+rebuilding and re-sending the `.dmg`.
 
 ## Features
 

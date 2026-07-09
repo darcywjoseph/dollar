@@ -104,16 +104,48 @@ Each user gets their own `theme` and default view; all financial data is shared.
 macOS) or `dollar-server.service` (systemd, Linux). Edit the paths, install, and enable. Logs go to
 `~/.dollar/server.log` (launchd) or `journalctl -u dollar-server` (systemd).
 
-**Expose it over Tailscale.** Put all three machines on the same tailnet, then on the server run:
+### Setting up Tailscale
+
+[Tailscale](https://tailscale.com) puts all three machines (this always-on Mac plus both laptops)
+on one private WireGuard network and gives the server a real TLS URL, without opening any port to
+the internet. The steps below are for a **macOS server**; the whole thing takes ~15 minutes.
+
+**1. Create the tailnet.** Sign in at [tailscale.com](https://tailscale.com) with your Google
+account — that sign-in _is_ your tailnet. The free plan (100 devices, 3 users) covers this easily.
+
+**2. Install on this Mac (the server).** Install the [Tailscale app](https://tailscale.com/download/mac)
+and log in. To use the `tailscale` command in the terminal, add the CLI to your shell once:
+
+```bash
+echo 'alias tailscale="/Applications/Tailscale.app/Contents/MacOS/Tailscale"' >> ~/.zshrc
+```
+
+The machine now appears in the [admin console](https://login.tailscale.com/admin/machines) with a
+MagicDNS name like `homeserver.tailXXXX.ts.net`.
+
+**3. Enable MagicDNS + HTTPS.** In the admin console → **DNS** tab, turn on **MagicDNS** and
+**HTTPS Certificates**. This is required — `tailscale serve` can't mint a TLS certificate without
+it.
+
+**4. Expose the server.** With `dollar-server` running (bound to `127.0.0.1:8420`), on this Mac run:
 
 ```bash
 tailscale serve --bg http://127.0.0.1:8420
+tailscale serve status   # prints the https://<host>.<tailnet>.ts.net URL to use in the app
 ```
 
-This gives a real TLS URL like `https://<host>.<tailnet>.ts.net` reachable only inside your tailnet
-(the Node server stays bound to loopback). Point each app at that URL on first launch. If
-`tailscale serve` isn't available, bind `DOLLAR_BIND` to the machine's Tailscale IP and use
-`http://<magicdns-name>:8420` — WireGuard already encrypts the traffic.
+That URL is reachable only inside your tailnet (the Node server stays bound to loopback). If
+`tailscale serve` isn't available on an older client, bind `DOLLAR_BIND` to the machine's Tailscale
+IP and use `http://<magicdns-name>:8420` instead — WireGuard already encrypts the traffic.
+
+**5. Add your own laptop.** Install Tailscale and log in with the **same** account; it joins
+automatically. Open dollar, enter the `.ts.net` URL, and sign in.
+
+**6. Sanity checks.** `tailscale status` on any machine lists all peers (you should see all three).
+From a laptop, `curl https://<host>.<tailnet>.ts.net/health` returns the server's health response
+once it's running and served.
+
+For your partner's laptop, see _Granting your partner access_ below.
 
 ### Granting your partner access
 

@@ -11,17 +11,15 @@ files:
   - '!electron.vite.config.{js,ts,mjs,cjs}'
   - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,README.md}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json,tailwind.config.js,postcss.config.js}'
-asarUnpack:
-  - node_modules/better-sqlite3/**
-npmRebuild: true
 mac:
+  icon: build/icon.png
   target:
     - target: dmg
       arch:
-        - x64
+        - universal
     - target: zip
       arch:
-        - x64
+        - universal
   category: public.app-category.finance
   identity: null
 win:

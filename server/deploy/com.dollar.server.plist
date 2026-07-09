@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd service for the dollar server (macOS home machine).
+
+  Setup:
+    1. Edit the paths below:
+         - <node> to the output of `which node`
+         - <repo> to the absolute path of this repository
+         - <home> to your home directory
+    2. Copy to ~/Library/LaunchAgents/com.dollar.server.plist
+    3. launchctl load -w ~/Library/LaunchAgents/com.dollar.server.plist
+    4. Logs: ~/.dollar/server.log
+  To stop:  launchctl unload -w ~/Library/LaunchAgents/com.dollar.server.plist
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.dollar.server</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/node</string>
+    <string>/ABSOLUTE/PATH/TO/repo/server/dist/index.cjs</string>
+  </array>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>DOLLAR_PORT</key>
+    <string>8420</string>
+    <key>DOLLAR_BIND</key>
+    <string>127.0.0.1</string>
+    <key>DOLLAR_DB_PATH</key>
+    <string>/Users/YOU/.dollar/dollar.db</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/YOU/.dollar/server.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/YOU/.dollar/server.log</string>
+</dict>
+</plist>

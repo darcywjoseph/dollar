@@ -11,7 +11,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "concurrently -k -n server,app \"npm --prefix server run dev\" \"DOLLAR_SERVER_URL=http://127.0.0.1:8420 electron-vite dev\"",
+    "dev:app": "DOLLAR_SERVER_URL=http://127.0.0.1:8420 electron-vite dev",
+    "dev:server": "npm --prefix server run dev",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "lint": "eslint .",
@@ -20,22 +22,22 @@
     "format:check": "prettier --check .",
     "build": "electron-vite build && electron-builder",
     "build:dir": "electron-vite build && electron-builder --dir",
-    "postinstall": "electron-builder install-app-deps",
+    "icons": "node scripts/make-icons.mjs",
     "prepare": "husky"
-  },
-  "dependencies": {
-    "better-sqlite3": "^12.2.0",
-    "pdfjs-dist": "^4.10.38"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@resvg/resvg-js": "^2.6.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.15.0",
+    "better-sqlite3": "^12.2.0",
+    "pdfjs-dist": "^4.10.38",
     "@types/papaparse": "^5.3.16",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.6.0",
     "autoprefixer": "^10.4.21",
+    "concurrently": "^9.1.0",
     "electron": "^40.0.0",
     "electron-builder": "^26.0.12",
     "electron-vite": "^3.1.0",

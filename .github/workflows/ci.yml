@@ -19,10 +19,18 @@ jobs:
 
       - run: npm ci
 
+      - run: npm ci --prefix server
+
       - run: npm run format:check
 
       - run: npm run lint
 
       - run: npm run typecheck
+
+      - run: npm --prefix server run typecheck
+
+      - run: npm --prefix server run smoke
+
+      - run: npm --prefix server run build
 
       - run: npm run build:dir

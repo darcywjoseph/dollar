@@ -314,19 +314,26 @@ export interface PayslipInput {
   notes?: string | null
 }
 
+/** A PDF uploaded with a payslip. Bytes travel to the server in the request
+ * body (a local path can't cross machines). */
+export interface PayslipPdfUpload {
+  filename: string
+  data: ArrayBuffer
+}
+
 export interface PayslipSaveOptions {
   /** account the net-pay transaction is created in (ignored when linking) */
   accountId: number
   categoryId: number | null
   /** adopt this existing bank transaction instead of creating one */
   linkTransactionId?: number | null
-  /** read this file and store it inside the database as the payslip's PDF */
-  pdfSourcePath?: string | null
+  /** attach this PDF, stored inside the database as the payslip's PDF */
+  pdf?: PayslipPdfUpload | null
 }
 
-/** Update payload: entity fields plus PDF handling. `pdfSourcePath` string =
- * attach/replace from that file, null = remove, absent = leave unchanged. */
-export type PayslipPatch = Partial<PayslipInput> & { pdfSourcePath?: string | null }
+/** Update payload: entity fields plus PDF handling. `pdf` object =
+ * attach/replace, null = remove, absent = leave unchanged. */
+export type PayslipPatch = Partial<PayslipInput> & { pdf?: PayslipPdfUpload | null }
 
 export interface PayslipFilter {
   personId?: number
@@ -571,17 +578,27 @@ export interface BackupData {
   payslipFiles?: { payslipId: number; filename: string; dataBase64: string }[]
 }
 
+export interface CurrentUser {
+  id: number
+  personId: number
+  username: string
+}
+
 export interface Bootstrap {
   people: Person[]
   accounts: Account[]
   categories: Category[]
   settings: AppSettings
   balances: AccountBalance[]
+  /** the logged-in user; null on servers without auth configured yet */
+  currentUser: CurrentUser | null
 }
 
-// IPC API surface (implemented in main, exposed via preload, consumed by renderer)
+// Server API surface — every channel is a POST /rpc/:channel call, implemented
+// in the shared Node server (server/src/rpc.ts) and consumed by the renderer
+// through src/renderer/src/api.ts.
 
-export interface LedgerApi {
+export interface DollarApi {
   getBootstrap(): Promise<Bootstrap>
 
   updatePerson(id: number, patch: { name?: string; color?: string }): Promise<Person[]>
@@ -617,10 +634,8 @@ export interface LedgerApi {
   createPayslip(input: PayslipInput, opts: PayslipSaveOptions): Promise<Payslip>
   updatePayslip(id: number, patch: PayslipPatch): Promise<Payslip>
   deletePayslip(id: number): Promise<Payslip[]>
-  /** native file picker for a payslip PDF; path is stored on the payslip */
-  pickPayslipPdf(): Promise<{ path: string | null }>
-  /** open a payslip's attached PDF in the system viewer */
-  openPayslipPdf(id: number): Promise<{ opened: boolean; error?: string }>
+  /** fetch a payslip's attached PDF bytes (base64) so the client can open it */
+  getPayslipPdf(id: number): Promise<{ filename: string; dataBase64: string } | null>
   matchImportRowsToPayslips(
     rows: { date: string; amountCents: number }[],
     personId: number
@@ -670,7 +685,34 @@ export interface LedgerApi {
   getSettings(): Promise<AppSettings>
   setSetting(key: keyof AppSettings, value: string): Promise<AppSettings>
 
-  exportBackup(): Promise<{ saved: boolean; path?: string }>
-  importBackup(): Promise<{ restored: boolean }>
-  saveCsv(defaultName: string, content: string): Promise<{ saved: boolean; path?: string }>
+  /** full database snapshot as JSON (the client writes it to a file) */
+  getBackupData(): Promise<BackupData>
+  /** replace the whole database from a JSON snapshot */
+  restoreBackupData(data: BackupData): Promise<{ restored: boolean }>
+}
+
+/** Residual Electron-native operations that must run in the desktop client
+ * (file dialogs, opening files, local client config). Exposed over IPC via
+ * `window.dollarIpc` and wrapped by src/renderer/src/nativeApi.ts. */
+export interface NativeApi {
+  /** native file picker returning the chosen PDF's bytes */
+  pickPayslipPdf(): Promise<
+    { canceled: true } | { canceled?: false; filename: string; data: ArrayBuffer }
+  >
+  /** write bytes to a temp file and open it in the system viewer */
+  openPdf(filename: string, dataBase64: string): Promise<{ opened: boolean; error?: string }>
+  /** native save dialog for a text file (CSV export, backup export) */
+  saveTextFile(
+    defaultName: string,
+    content: string,
+    kind: 'csv' | 'json'
+  ): Promise<{ saved: boolean; path?: string }>
+  /** native open dialog returning a JSON file's text (backup import) */
+  pickJsonFile(): Promise<{ canceled: true } | { canceled?: false; content: string }>
+  /** persisted client config: which server to talk to */
+  getClientConfig(): Promise<{ serverUrl: string | null }>
+  setClientConfig(cfg: { serverUrl: string }): Promise<{ serverUrl: string | null }>
+  /** session token, stored encrypted at rest via Electron safeStorage */
+  getSessionToken(): Promise<string | null>
+  setSessionToken(token: string | null): Promise<void>
 }

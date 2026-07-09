@@ -3,24 +3,63 @@ import type {
   Account,
   AccountInput,
   AccountType,
+  BackupData,
   Category,
   CategoryInput,
   CategoryType
 } from '@shared/types'
 import { parseAmountToCents } from '@shared/money'
 import { api } from '../api'
+import { nativeApi } from '../nativeApi'
 import { useApp } from '../appContext'
 import { Badge, Button, Card, Modal } from '../components/ui'
 
 export default function Settings(): React.JSX.Element {
   return (
     <div className="mx-auto max-w-3xl space-y-5">
+      <AccountSection />
       <GeneralSection />
       <PeopleSection />
       <AccountsSection />
       <CategoriesSection />
       <DataSection />
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+
+function AccountSection(): React.JSX.Element {
+  const { currentUser, logout, toast } = useApp()
+  const [busy, setBusy] = useState(false)
+
+  const doLogout = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      await logout()
+    } catch (err) {
+      toast((err as Error).message, 'error')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Card title="Account">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-sm text-slate-600 dark:text-slate-300">
+          {currentUser ? (
+            <>
+              Signed in as <span className="font-medium">{currentUser.username}</span>
+            </>
+          ) : (
+            'Not signed in'
+          )}
+        </div>
+        <Button onClick={doLogout} disabled={busy}>
+          Log out
+        </Button>
+      </div>
+    </Card>
   )
 }
 
@@ -576,7 +615,13 @@ function DataSection(): React.JSX.Element {
   const doExport = async (): Promise<void> => {
     setBusy(true)
     try {
-      const res = await api.exportBackup()
+      const data = await api.getBackupData()
+      const date = new Date().toISOString().slice(0, 10)
+      const res = await nativeApi.saveTextFile(
+        `dollar-backup-${date}.json`,
+        JSON.stringify(data, null, 2),
+        'json'
+      )
       if (res.saved) toast(`Backup saved to ${res.path}`, 'success')
     } catch (err) {
       toast((err as Error).message, 'error')
@@ -594,9 +639,17 @@ function DataSection(): React.JSX.Element {
       danger: true
     })
     if (!ok) return
+    const picked = await nativeApi.pickJsonFile()
+    if ('canceled' in picked && picked.canceled) return
     setBusy(true)
     try {
-      const res = await api.importBackup()
+      let parsed: BackupData
+      try {
+        parsed = JSON.parse((picked as { content: string }).content) as BackupData
+      } catch {
+        throw new Error('File is not valid JSON')
+      }
+      const res = await api.restoreBackupData(parsed)
       if (res.restored) {
         await refresh()
         toast('Backup restored', 'success')

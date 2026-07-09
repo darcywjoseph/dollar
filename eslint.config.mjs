@@ -8,7 +8,14 @@ import prettier from 'eslint-config-prettier'
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'out/**', 'node_modules/**']
+    ignores: [
+      'dist/**',
+      'out/**',
+      'node_modules/**',
+      'server/dist/**',
+      'server/.dev/**',
+      'server/node_modules/**'
+    ]
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

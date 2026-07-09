@@ -12,6 +12,7 @@ import type {
 import { currentMonthKey, formatDateDisplay, todayISO } from '@shared/dates'
 import { parseAmountToCents } from '@shared/money'
 import { api } from '../api'
+import { nativeApi } from '../nativeApi'
 import { useApp } from '../appContext'
 import { Badge, Button, Card, EmptyState, Modal, Money, MonthNav, Spinner } from '../components/ui'
 import PayslipModal from './PayslipModal'
@@ -91,7 +92,12 @@ function PayslipsTab(): React.JSX.Element {
 
   const openPdf = async (slip: Payslip): Promise<void> => {
     try {
-      const res = await api.openPayslipPdf(slip.id)
+      const pdf = await api.getPayslipPdf(slip.id)
+      if (!pdf) {
+        toast('No PDF attached to this payslip', 'error')
+        return
+      }
+      const res = await nativeApi.openPdf(pdf.filename, pdf.dataBase64)
       if (!res.opened) toast(res.error ?? 'Could not open the PDF', 'error')
     } catch (err) {
       toast((err as Error).message, 'error')

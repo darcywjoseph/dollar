@@ -1,7 +1,18 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AppSettings, Bootstrap } from '@shared/types'
 import { formatCents } from '@shared/money'
-import { api } from './api'
+import {
+  api,
+  checkHealth,
+  getServerUrl,
+  login as apiLogin,
+  logout as apiLogout,
+  ServerUnreachableError,
+  setServerUrl,
+  setSessionToken
+} from './api'
+import { nativeApi } from './nativeApi'
+import { ConnectionGate, type ConnectionPhase } from './components/ConnectionGate'
 import { Ctx, type AppState, type ConfirmOptions, type Toast, type ViewMode } from './appContext'
 
 const EMPTY: never[] = []
@@ -18,6 +29,7 @@ let toastSeq = 0
 
 export function AppProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const [ready, setReady] = useState(false)
+  const [phase, setPhase] = useState<ConnectionPhase | 'ready'>('checking')
   const [boot, setBoot] = useState<Bootstrap | null>(null)
   const [viewMode, setViewModeState] = useState<ViewMode>('combined')
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -25,22 +37,94 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
   const [confirmState, setConfirmState] = useState<
     (ConfirmOptions & { resolve: (v: boolean) => void }) | null
   >(null)
-  const loadFailed = useRef(false)
 
   const refresh = useCallback(async () => {
     const data = await api.getBootstrap()
     setBoot(data)
   }, [])
 
+  // Boot sequence: resolve the configured server, confirm it's reachable, then
+  // load. Each failure lands on a specific gate screen (setup / unreachable).
+  const connect = useCallback(async () => {
+    setPhase('checking')
+    const cfg = await nativeApi.getClientConfig()
+    if (!cfg.serverUrl) {
+      setPhase('needs-config')
+      return
+    }
+    setServerUrl(cfg.serverUrl)
+    const token = await nativeApi.getSessionToken()
+    setSessionToken(token)
+    if (!(await checkHealth(cfg.serverUrl))) {
+      setPhase('unreachable')
+      return
+    }
+    if (!token) {
+      setPhase('needs-login')
+      return
+    }
+    try {
+      await refresh()
+      setReady(true)
+      setPhase('ready')
+    } catch (err) {
+      if (err instanceof ServerUnreachableError) {
+        setPhase('unreachable')
+      } else {
+        // Most likely an expired/invalid token → bounce to login.
+        await nativeApi.setSessionToken(null)
+        setSessionToken(null)
+        setPhase('needs-login')
+      }
+    }
+  }, [refresh])
+
+  const configureServer = useCallback(
+    async (url: string) => {
+      await nativeApi.setClientConfig({ serverUrl: url })
+      await connect()
+    },
+    [connect]
+  )
+
+  const doLogin = useCallback(
+    async (username: string, password: string) => {
+      const url = getServerUrl()
+      if (!url) throw new Error('No server configured')
+      const { token } = await apiLogin(url, username, password)
+      await nativeApi.setSessionToken(token)
+      setSessionToken(token)
+      await connect()
+    },
+    [connect]
+  )
+
+  const logout = useCallback(async () => {
+    const url = getServerUrl()
+    const token = await nativeApi.getSessionToken()
+    if (url && token) await apiLogout(url, token)
+    await nativeApi.setSessionToken(null)
+    setSessionToken(null)
+    setReady(false)
+    setBoot(null)
+    setPhase('needs-login')
+  }, [])
+
   useEffect(() => {
-    refresh()
-      .then(() => setReady(true))
-      .catch((err) => {
-        loadFailed.current = true
-        console.error(err)
-        toast(`Failed to load: ${err.message}`, 'error')
-      })
+    connect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // A 401 mid-session (expired/revoked token) bounces back to login.
+  useEffect(() => {
+    const onExpired = (): void => {
+      setSessionToken(null)
+      void nativeApi.setSessionToken(null)
+      setReady(false)
+      setPhase('needs-login')
+    }
+    window.addEventListener('auth:expired', onExpired)
+    return () => window.removeEventListener('auth:expired', onExpired)
   }, [])
 
   // sync view mode from persisted settings once loaded
@@ -111,6 +195,8 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
       categories,
       balances,
       settings,
+      currentUser: boot?.currentUser ?? null,
+      logout,
       viewMode,
       isDark,
       setViewMode,
@@ -131,6 +217,8 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
       categories,
       balances,
       settings,
+      boot,
+      logout,
       viewMode,
       isDark,
       setViewMode,
@@ -141,6 +229,18 @@ export function AppProvider({ children }: { children: React.ReactNode }): React.
       updateSetting
     ]
   )
+
+  if (phase !== 'ready') {
+    return (
+      <ConnectionGate
+        phase={phase}
+        onConfigure={configureServer}
+        onLogin={doLogin}
+        onRetry={connect}
+        onChangeServer={() => setPhase('needs-config')}
+      />
+    )
+  }
 
   return (
     <Ctx.Provider value={value}>

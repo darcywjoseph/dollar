@@ -1,21 +1,9 @@
 import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
-import { mkdtempSync } from 'fs'
-import { tmpdir } from 'os'
-import type { Database as DB } from 'better-sqlite3'
-import { openDatabase } from './db/connection'
-import { generateDueInstances } from './db/recurring'
-import { registerIpcHandlers } from './ipc'
-import { runSmokeTest } from './smoke'
-
-const isSmoke = process.env.DOLLAR_SMOKE === '1'
-if (isSmoke) {
-  // Smoke tests run against a throwaway data directory.
-  app.setPath('userData', mkdtempSync(join(tmpdir(), 'dollar-smoke-')))
-}
+import icon from '../../resources/icon.png?asset'
+import { registerNativeHandlers } from './native'
 
 let mainWindow: BrowserWindow | null = null
-let db: DB | null = null
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -25,6 +13,7 @@ function createWindow(): BrowserWindow {
     minHeight: 600,
     show: false,
     title: 'dollar',
+    icon,
     backgroundColor: '#f8fafc',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -49,24 +38,10 @@ function createWindow(): BrowserWindow {
   return win
 }
 
-app.whenReady().then(async () => {
-  const dbPath = join(app.getPath('userData'), 'dollar.db')
-  db = openDatabase(dbPath)
-  const created = generateDueInstances(db)
-  if (created > 0) console.log(`[dollar] generated ${created} recurring transaction(s)`)
-
-  registerIpcHandlers(db, () => mainWindow)
-
-  if (isSmoke) {
-    try {
-      await runSmokeTest(db, createWindow)
-      app.exit(0)
-    } catch (err) {
-      console.error('[smoke] FAILED:', err)
-      app.exit(1)
-    }
-    return
-  }
+app.whenReady().then(() => {
+  // The data layer now lives in the shared server; the client only needs the
+  // native bridge (file dialogs, opening PDFs, client config / token).
+  registerNativeHandlers(() => mainWindow)
 
   mainWindow = createWindow()
 
@@ -76,9 +51,5 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin' || isSmoke) app.quit()
-})
-
-app.on('quit', () => {
-  db?.close()
+  if (process.platform !== 'darwin') app.quit()
 })

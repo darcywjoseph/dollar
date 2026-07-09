@@ -1,0 +1,28 @@
+# systemd service for the dollar server (Linux home machine).
+#
+# Setup:
+#   1. Edit User, WorkingDirectory, ExecStart node path, and Environment below.
+#   2. sudo cp dollar-server.service /etc/systemd/system/
+#   3. sudo systemctl daemon-reload
+#   4. sudo systemctl enable --now dollar-server
+#   5. Logs: journalctl -u dollar-server -f
+# To stop: sudo systemctl stop dollar-server
+
+[Unit]
+Description=dollar shared budgeting server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=YOU
+WorkingDirectory=/ABSOLUTE/PATH/TO/repo/server
+ExecStart=/usr/bin/node /ABSOLUTE/PATH/TO/repo/server/dist/index.cjs
+Restart=always
+RestartSec=3
+Environment=DOLLAR_PORT=8420
+Environment=DOLLAR_BIND=127.0.0.1
+Environment=DOLLAR_DB_PATH=/home/YOU/.dollar/dollar.db
+
+[Install]
+WantedBy=multi-user.target

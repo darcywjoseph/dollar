@@ -2,9 +2,9 @@ export {}
 
 declare global {
   interface Window {
-    ledgerIpc: {
+    dollarIpc: {
       invoke: (channel: string, ...args: unknown[]) => Promise<unknown>
     }
-    __ledgerErrors?: string[]
+    __dollarErrors?: string[]
   }
 }
